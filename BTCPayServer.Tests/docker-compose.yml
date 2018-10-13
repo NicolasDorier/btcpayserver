@@ -31,6 +31,28 @@ services:
     volumes:
       - "customer_lightningd_datadir:/etc/customer_lightningd_datadir"
       - "merchant_lightningd_datadir:/etc/merchant_lightningd_datadir"
+      
+  # REQUIRES THAT YOU BUILD LOCAL COPY OF dogecoin image:
+  # `docker build -t btcpayserver/dogecoin`
+  # https://github.com/NicolasDorier/docker-bitcoin/pull/9
+  dogecoind:
+    image: btcpayserver/dogecoin
+    environment:
+      DOGECOIN_EXTRA_ARGS: |
+        rpcuser=ceiwHEbqWI83
+        rpcpassword=DwubwWsoo3
+        regtest=1
+        server=1
+        rpcport=22555
+        port=22556
+        whitelist=0.0.0.0/0
+    ports: 
+      - "22555:22555"
+    expose:
+      - "22555" # RPC
+      - "22556" # P2P
+    volumes:
+      - "dogecoin_datadir:/data"
 
   # The dev container is not actually used, it is just handy to run `docker-compose up dev` to start all services
   dev: 
@@ -70,7 +92,7 @@ services:
       - "32838"
     environment:
       NBXPLORER_NETWORK: regtest
-      NBXPLORER_CHAINS: "btc,ltc"
+      NBXPLORER_CHAINS: "btc,ltc,doge"
       NBXPLORER_BTCRPCURL: http://bitcoind:43782/
       NBXPLORER_BTCNODEENDPOINT: bitcoind:39388
       NBXPLORER_BTCRPCUSER: ceiwHEbqWI83
@@ -79,6 +101,10 @@ services:
       NBXPLORER_LTCNODEENDPOINT: litecoind:39388
       NBXPLORER_LTCRPCUSER: ceiwHEbqWI83
       NBXPLORER_LTCRPCPASSWORD: DwubwWsoo3
+      NBXPLORER_DOGERPCURL: http://dogecoind:22555/
+      NBXPLORER_DOGENODEENDPOINT: dogecoind:22556
+      NBXPLORER_DOGERPCUSER: ceiwHEbqWI83
+      NBXPLORER_DOGERPCPASSWORD: DwubwWsoo3
       NBXPLORER_BIND: 0.0.0.0:32838
       NBXPLORER_VERBOSE: 1
       NBXPLORER_NOAUTH: 1
@@ -260,3 +286,4 @@ volumes:
     lightning_charge_datadir:
     customer_lnd_datadir:
     merchant_lnd_datadir:
+    dogecoin_datadir:

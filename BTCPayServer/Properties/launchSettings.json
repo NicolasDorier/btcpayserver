@@ -1,20 +1,21 @@
 {
-  "profiles": {
-    "Docker-Regtest": {
-      "commandName": "Project",
-      "launchBrowser": true,
-      "environmentVariables": {
-        "BTCPAY_NETWORK": "regtest",
-        "BTCPAY_BUNDLEJSCSS": "true",
-        "BTCPAY_LTCEXPLORERURL": "http://127.0.0.1:32838/",
-        "BTCPAY_BTCLIGHTNING": "type=charge;server=http://127.0.0.1:54938/;api-token=foiewnccewuify",
-        "BTCPAY_BTCEXTERNALLNDGRPC": "type=lnd-grpc;server=https://lnd:lnd@127.0.0.1:53280/;allowinsecure=true",
-        "BTCPAY_BTCEXPLORERURL": "http://127.0.0.1:32838/",
-        "ASPNETCORE_ENVIRONMENT": "Development",
-        "BTCPAY_CHAINS": "btc,ltc",
-        "BTCPAY_POSTGRES": "User ID=postgres;Host=127.0.0.1;Port=39372;Database=btcpayserver"
-      },
-      "applicationUrl": "http://127.0.0.1:14142/"
+    "profiles": {
+        "Docker-Regtest": {
+            "commandName": "Project",
+            "launchBrowser": true,
+            "environmentVariables": {
+                "BTCPAY_NETWORK": "regtest",
+                "BTCPAY_BUNDLEJSCSS": "true",
+                "BTCPAY_BTCEXPLORERURL": "http://127.0.0.1:32838/",
+                "BTCPAY_LTCEXPLORERURL": "http://127.0.0.1:32838/",
+                "BTCPAY_DOGEEXPLORERURL": "http://127.0.0.1:32838/",
+                "BTCPAY_BTCLIGHTNING": "type=charge;server=http://127.0.0.1:54938/;api-token=foiewnccewuify",
+                "BTCPAY_BTCEXTERNALLNDGRPC": "type=lnd-grpc;server=https://lnd:lnd@127.0.0.1:53280/;allowinsecure=true",
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "BTCPAY_CHAINS": "btc,ltc,doge",
+                "BTCPAY_POSTGRES": "User ID=postgres;Host=127.0.0.1;Port=39372;Database=btcpayserver"
+            },
+            "applicationUrl": "http://127.0.0.1:14142/"
+        }
     }
-  }
 }
