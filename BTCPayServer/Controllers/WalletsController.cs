@@ -210,6 +210,14 @@ namespace BTCPayServer.Controllers
                         Logs.PayServer.LogInformation("done");
                         await WalletRepository.SetWalletTransactionInfo(walletId, transactionId, walletTransactionInfo);
                     }
+                    else
+                    {
+                        Logs.PayServer.LogInformation($"Tried to find: {removelabel}");
+                        foreach (var item in walletTransactionInfo.Labels)
+                        {
+                            Logs.PayServer.LogInformation($"Item: {item}");
+                        }
+                    }
                 }
             }
             else if (addcomment != null)
