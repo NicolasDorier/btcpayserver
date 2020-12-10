@@ -137,6 +137,8 @@ namespace BTCPayServer.Controllers
                                 string addcomment = null,
                                 string removelabel = null)
         {
+            if (removelabel is string)
+            Logs.PayServer.LogInformation($"REMOVELABEL: {Encoders.Hex.EncodeData(Encoding.UTF8.GetBytes(removelabel))}");
             addlabel = addlabel ?? addlabelclick;
             // Hack necessary when the user enter a empty comment and submit.
             // For some reason asp.net consider addcomment null instead of empty string...
