@@ -10,6 +10,7 @@ using BTCPayServer.Abstractions.Models;
 using BTCPayServer.Client;
 using BTCPayServer.Data;
 using BTCPayServer.HostedServices;
+using BTCPayServer.Logging;
 using BTCPayServer.ModelBinders;
 using BTCPayServer.Models;
 using BTCPayServer.Models.StoreViewModels;
@@ -24,6 +25,7 @@ using BTCPayServer.Services.Wallets;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using NBitcoin;
 using NBitcoin.DataEncoders;
 using NBXplorer;
@@ -191,16 +193,21 @@ namespace BTCPayServer.Controllers
             else if (removelabel != null)
             {
                 removelabel = removelabel.Trim();
+                Logs.PayServer.LogInformation("removelabel");
                 if (walletTransactionsInfo.TryGetValue(transactionId, out var walletTransactionInfo))
                 {
+                    Logs.PayServer.LogInformation("foundtx");
                     if (walletTransactionInfo.Labels.Remove(removelabel))
                     {
+                        Logs.PayServer.LogInformation("removed");
                         var canDelete = !walletTransactionsInfo.SelectMany(txi => txi.Value.Labels).Any(l => l == removelabel);
                         if (canDelete)
                         {
+                            Logs.PayServer.LogInformation("canDelete");
                             walletBlobInfo.LabelColors.Remove(removelabel);
                             await WalletRepository.SetWalletInfo(walletId, walletBlobInfo);
                         }
+                        Logs.PayServer.LogInformation("done");
                         await WalletRepository.SetWalletTransactionInfo(walletId, transactionId, walletTransactionInfo);
                     }
                 }
