@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Constants;
@@ -212,10 +213,10 @@ namespace BTCPayServer.Controllers
                     }
                     else
                     {
-                        Logs.PayServer.LogInformation($"Tried to find: {removelabel}");
+                        Logs.PayServer.LogInformation($"Tried to find: {Encoders.Hex.EncodeData(Encoding.UTF8.GetBytes(removelabel))}");
                         foreach (var item in walletTransactionInfo.Labels)
                         {
-                            Logs.PayServer.LogInformation($"Item: {item}");
+                            Logs.PayServer.LogInformation($"Item: {Encoders.Hex.EncodeData(Encoding.UTF8.GetBytes(item))}");
                         }
                     }
                 }
