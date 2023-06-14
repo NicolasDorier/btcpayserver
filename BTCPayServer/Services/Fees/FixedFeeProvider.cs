@@ -1,12 +1,9 @@
-﻿using NBitcoin;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
+using NBitcoin;
 
 namespace BTCPayServer.Services.Fees
 {
-    public class FixedFeeProvider : IFeeProvider
+    public class FixedFeeProvider : IFeeProvider, IFeeProviderFactory
     {
         public FixedFeeProvider(FeeRate feeRate)
         {
@@ -18,7 +15,12 @@ namespace BTCPayServer.Services.Fees
             get; set;
         }
 
-        public Task<FeeRate> GetFeeRateAsync()
+        public IFeeProvider CreateFeeProvider(BTCPayNetworkBase network)
+        {
+            return new FixedFeeProvider(FeeRate);
+        }
+
+        public Task<FeeRate> GetFeeRateAsync(int blockTarget)
         {
             return Task.FromResult(FeeRate);
         }

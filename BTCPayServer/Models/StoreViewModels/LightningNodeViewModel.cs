@@ -1,29 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Rendering;
 
 namespace BTCPayServer.Models.StoreViewModels
 {
+    public enum LightningNodeType
+    {
+        Internal,
+        Custom
+    }
+
     public class LightningNodeViewModel
     {
-        [Display(Name = "Connection string")]
-        public string ConnectionString
-        {
-            get;
-            set;
-        }
-
-        public string CryptoCode
-        {
-            get;
-            set;
-        }
-        public string StatusMessage { get; set; }
-        public string InternalLightningNode { get; internal set; }
+        public LightningNodeType LightningNodeType { get; set; }
+        public string StoreId { get; set; }
+        public string CryptoCode { get; set; }
+        public bool CanUseInternalNode { get; set; }
         public bool SkipPortTest { get; set; }
         public bool Enabled { get; set; } = true;
+
+        [Display(Name = "Connection string")]
+        public string ConnectionString { get; set; }
     }
 }

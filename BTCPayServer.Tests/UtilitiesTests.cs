@@ -1,6 +1,5 @@
-﻿using System;
+using System.IO;
 using System.Linq;
-using System.Collections.Generic;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,7 +7,6 @@ using Microsoft.Extensions.Configuration;
 using NBitcoin.DataEncoders;
 using Newtonsoft.Json.Linq;
 using Xunit;
-using System.IO;
 
 namespace BTCPayServer.Tests
 {
@@ -20,26 +18,29 @@ namespace BTCPayServer.Tests
         /// <summary>
         /// Download transifex transactions and put them in BTCPayServer\wwwroot\locales
         /// </summary>
+        [FactWithSecret("TransifexAPIToken")]
         [Trait("Utilities", "Utilities")]
-        [Fact]
         public async Task PullTransifexTranslations()
         {
             // 1. Generate an API Token on https://www.transifex.com/user/settings/api/
             // 2. Run "dotnet user-secrets set TransifexAPIToken <youapitoken>"
-            var client = new TransifexClient(GetTransifexAPIToken());
+            var client = new TransifexClient(FactWithSecretAttribute.GetFromSecrets("TransifexAPIToken"));
             var json = await client.GetTransifexAsync("https://api.transifex.com/organizations/btcpayserver/projects/btcpayserver/resources/enjson/");
-            var langs = ((JObject)json["stats"]).Properties().Select(n => n.Name).ToArray();
+            var langs = new[] { "en" }.Concat(((JObject)json["stats"]).Properties().Select(n => n.Name)).ToArray();
 
-            var langsDir = Path.Combine(Services.LanguageService.TryGetSolutionDirectoryInfo().FullName, "BTCPayServer", "wwwroot", "locales");
+            var langsDir = Path.Combine(TestUtils.TryGetSolutionDirectoryInfo().FullName, "BTCPayServer", "wwwroot", "locales");
 
+            JObject sourceLang = null;
             Task.WaitAll(langs.Select(async l =>
             {
-                if (l == "no")
-                    return;
+                bool isSourceLang = l == "en";
                 var j = await client.GetTransifexAsync($"https://www.transifex.com/api/2/project/btcpayserver/resource/enjson/translation/{l}/");
+                if (!isSourceLang)
+                {
+                    while (sourceLang == null)
+                        await Task.Delay(10);
+                }
                 var content = j["content"].Value<string>();
-                if (l == "en_US")
-                    l = "en";
                 if (l == "ne_NP")
                     l = "np_NP";
                 if (l == "zh_CN")
@@ -51,22 +52,27 @@ namespace BTCPayServer.Tests
                 var langFile = Path.Combine(langsDir, langCode + ".json");
                 var jobj = JObject.Parse(content);
                 jobj["code"] = langCode;
-                if ((string)jobj["currentLanguage"] == "English")
-                    return;
+
+                if ((string)jobj["currentLanguage"] == "English" && !isSourceLang)
+                    return; // Not translated
+                if ((string)jobj["currentLanguage"] == "disable")
+                    return; // Not translated
+
                 jobj.AddFirst(new JProperty("NOTICE_WARN", "THIS CODE HAS BEEN AUTOMATICALLY GENERATED FROM TRANSIFEX, IF YOU WISH TO HELP TRANSLATION COME ON THE SLACK http://slack.btcpayserver.org TO REQUEST PERMISSION TO https://www.transifex.com/btcpayserver/btcpayserver/"));
+                if (isSourceLang)
+                {
+                    sourceLang = jobj;
+                }
+                else
+                {
+                    if (jobj["InvoiceExpired_Body_3"].Value<string>() == sourceLang["InvoiceExpired_Body_3"].Value<string>())
+                    {
+                        jobj["InvoiceExpired_Body_3"] = string.Empty;
+                    }
+                }
                 content = jobj.ToString(Newtonsoft.Json.Formatting.Indented);
                 File.WriteAllText(Path.Combine(langsDir, langFile), content);
             }).ToArray());
-        }
-
-        private static string GetTransifexAPIToken()
-        {
-            var builder = new ConfigurationBuilder();
-            builder.AddUserSecrets("AB0AC1DD-9D26-485B-9416-56A33F268117");
-            var config = builder.Build();
-            var token = config["TransifexAPIToken"];
-            Assert.False(token == null, "TransifexAPIToken is not set.\n 1.Generate an API Token on https://www.transifex.com/user/settings/api/ \n 2.Run \"dotnet user-secrets set TransifexAPIToken <youapitoken>\"");
-            return token;
         }
     }
 

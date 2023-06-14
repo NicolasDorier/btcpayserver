@@ -1,8 +1,5 @@
-﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Renci.SshNet;
 
 namespace BTCPayServer.SSH
@@ -13,8 +10,14 @@ namespace BTCPayServer.SSH
         public int Port { get; set; } = 22;
         public string KeyFile { get; set; }
         public string KeyFilePassword { get; set; }
+        public string AuthorizedKeysFile { get; set; }
         public string Username { get; set; }
         public string Password { get; set; }
+        public List<SSHFingerprint> TrustedFingerprints { get; set; } = new List<SSHFingerprint>();
+        internal bool IsTrustedFingerprint(byte[] fingerPrint, byte[] hostKey)
+        {
+            return TrustedFingerprints.Any(f => f.Match(fingerPrint, hostKey));
+        }
 
         public ConnectionInfo CreateConnectionInfo()
         {

@@ -1,8 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-
 namespace BTCPayServer.Models.AppViewModels
 {
     public class ListAppsViewModel
@@ -14,6 +9,7 @@ namespace BTCPayServer.Models.AppViewModels
             public string StoreId { get; set; }
             public string AppName { get; set; }
             public string AppType { get; set; }
+            public string ViewStyle { get; set; }
             public bool IsOwner { get; set; }
 
             public string UpdateAction { get { return "Update" + AppType; } }

@@ -1,6 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -18,10 +15,6 @@ namespace BTCPayServer.ModelBinders
 
             ValueProviderResult val = bindingContext.ValueProvider.GetValue(
                 bindingContext.ModelName);
-            if (val == null)
-            {
-                return Task.CompletedTask;
-            }
 
             string key = val.FirstValue as string;
             if (key == null)
@@ -29,9 +22,14 @@ namespace BTCPayServer.ModelBinders
                 return Task.CompletedTask;
             }
 
-            if(WalletId.TryParse(key, out var walletId))
+            if (WalletId.TryParse(key, out var walletId))
             {
                 bindingContext.Result = ModelBindingResult.Success(walletId);
+            }
+            else
+            {
+                bindingContext.Result = ModelBindingResult.Failed();
+                bindingContext.ModelState.AddModelError(bindingContext.ModelName, "Invalid wallet id");
             }
             return Task.CompletedTask;
         }

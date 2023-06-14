@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+using BTCPayServer.Payments;
 
 namespace BTCPayServer
 {
@@ -11,8 +9,7 @@ namespace BTCPayServer
         static readonly Regex _WalletStoreRegex = new Regex("^S-([a-zA-Z0-9]{30,60})-([a-zA-Z]{2,5})$");
         public static bool TryParse(string str, out WalletId walletId)
         {
-            if (str == null)
-                throw new ArgumentNullException(nameof(str));
+            ArgumentNullException.ThrowIfNull(str);
             walletId = null;
             WalletId w = new WalletId();
             var match = _WalletStoreRegex.Match(str);
@@ -35,7 +32,10 @@ namespace BTCPayServer
         public string StoreId { get; set; }
         public string CryptoCode { get; set; }
 
-
+        public PaymentMethodId GetPaymentMethodId()
+        {
+            return new PaymentMethodId(CryptoCode, PaymentTypes.BTCLike);
+        }
         public override bool Equals(object obj)
         {
             WalletId item = obj as WalletId;
@@ -43,6 +43,14 @@ namespace BTCPayServer
                 return false;
             return ToString().Equals(item.ToString(), StringComparison.InvariantCulture);
         }
+
+        public static WalletId Parse(string id)
+        {
+            if (TryParse(id, out var v))
+                return v;
+            throw new FormatException("Invalid WalletId");
+        }
+
         public static bool operator ==(WalletId a, WalletId b)
         {
             if (System.Object.ReferenceEquals(a, b))

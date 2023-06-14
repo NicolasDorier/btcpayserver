@@ -1,9 +1,10 @@
-﻿using NBitcoin;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Text;
+using BTCPayServer.Client.Models;
+using BTCPayServer.Services.Invoices;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Linq;
 
 namespace BTCPayServer.Models
 {
@@ -18,10 +19,10 @@ namespace BTCPayServer.Models
         {
             var v = (long)reader.Value;
             Check(v);
-            return unixRef + TimeSpan.FromMilliseconds((long)v);
+            return unixRef + TimeSpan.FromMilliseconds(v);
         }
 
-        static DateTimeOffset unixRef = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        static readonly DateTimeOffset unixRef = new DateTimeOffset(1970, 1, 1, 0, 0, 0, TimeSpan.Zero);
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
             var date = ((DateTimeOffset)value).ToUniversalTime();
@@ -40,6 +41,12 @@ namespace BTCPayServer.Models
     //{"facade":"pos/invoice","data":{,}}
     public class InvoiceResponse
     {
+        [JsonIgnore]
+        public string StoreId
+        {
+            get; set;
+        }
+
         //"url":"https://test.bitpay.com/invoice?id=9saCHtp1zyPcNoi3rDdBu8"
         [JsonProperty("url")]
         public string Url
@@ -75,11 +82,17 @@ namespace BTCPayServer.Models
         }
 
         [JsonProperty("cryptoInfo")]
-        public List<NBitpayClient.InvoiceCryptoInfo> CryptoInfo { get; set; }
+        public List<InvoiceCryptoInfo> CryptoInfo { get; set; }
 
         //"price":5
         [JsonProperty("price")]
         public decimal Price
+        {
+            get; set;
+        }
+
+        [JsonProperty("taxIncluded", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public decimal TaxIncluded
         {
             get; set;
         }
@@ -109,6 +122,12 @@ namespace BTCPayServer.Models
         //"itemDesc":"Some description"
         [JsonProperty("itemDesc")]
         public string ItemDesc
+        {
+            get; set;
+        }
+
+        [JsonProperty("itemCode")]
+        public string ItemCode
         {
             get; set;
         }
@@ -226,10 +245,10 @@ namespace BTCPayServer.Models
         }
 
         [JsonProperty("paymentSubtotals")]
-        public Dictionary<string, long> PaymentSubtotals { get; set; }
+        public Dictionary<string, decimal> PaymentSubtotals { get; set; }
 
         [JsonProperty("paymentTotals")]
-        public Dictionary<string, long> PaymentTotals { get; set; }
+        public Dictionary<string, decimal> PaymentTotals { get; set; }
 
         [JsonProperty("amountPaid", DefaultValueHandling = DefaultValueHandling.Include)]
         public long AmountPaid { get; set; }
@@ -246,9 +265,11 @@ namespace BTCPayServer.Models
         [JsonProperty("addresses")]
         public Dictionary<string, string> Addresses { get; set; }
         [JsonProperty("paymentCodes")]
-        public Dictionary<string, NBitpayClient.InvoicePaymentUrls> PaymentCodes { get; set; }
+        public Dictionary<string, InvoiceCryptoInfo.InvoicePaymentUrls> PaymentCodes { get; set; }
         [JsonProperty("buyer")]
         public JObject Buyer { get; set; }
+        [JsonConverter(typeof(StringEnumConverter))]
+        public CheckoutType? CheckoutType { get; set; }
     }
     public class Flags
     {

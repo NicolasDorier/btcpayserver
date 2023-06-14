@@ -1,69 +1,75 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+#nullable enable
+using System;
 using BTCPayServer.Lightning;
-using NBitcoin;
+using Newtonsoft.Json;
 
 namespace BTCPayServer.Payments.Lightning
 {
     public class LightningSupportedPaymentMethod : ISupportedPaymentMethod
     {
-        public string CryptoCode { get; set; }
+        public const string InternalNode = "Internal Node";
+        public string CryptoCode { get; set; } = string.Empty;
 
-        [Obsolete("Use Get/SetLightningUrl")]
-        public string Username { get; set; }
-        [Obsolete("Use Get/SetLightningUrl")]
-        public string Password { get; set; }
-
-        // This property MUST be after CryptoCode or else JSON serialization fails
+        [JsonIgnore]
         public PaymentMethodId PaymentId => new PaymentMethodId(CryptoCode, PaymentTypes.LightningLike);
 
         [Obsolete("Use Get/SetLightningUrl")]
-        public string LightningChargeUrl { get; set; }
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string? LightningConnectionString { get; set; }
 
-        [Obsolete("Use Get/SetLightningUrl")]
-        public string LightningConnectionString { get; set; }
+        public bool DisableBOLT11PaymentOption { get; set; } = false;
 
-        public LightningConnectionString GetLightningUrl()
+        public LightningConnectionString? GetExternalLightningUrl()
         {
 #pragma warning disable CS0618 // Type or member is obsolete
-            if (!string.IsNullOrEmpty(LightningConnectionString))
+            if (string.IsNullOrEmpty(LightningConnectionString)) return null;
+            if (!BTCPayServer.Lightning.LightningConnectionString.TryParse(LightningConnectionString, false, out var connectionString, out var error))
             {
-                if (!BTCPayServer.Lightning.LightningConnectionString.TryParse(LightningConnectionString, false, out var connectionString, out var error))
-                {
-                    throw new FormatException(error);
-                }
-                return connectionString;
+                throw new FormatException(error);
             }
-            else
-            {
-                var fullUri = new UriBuilder(LightningChargeUrl) { UserName = Username, Password = Password }.Uri.AbsoluteUri;
-                if (!BTCPayServer.Lightning.LightningConnectionString.TryParse(fullUri, true, out var connectionString, out var error))
-                {
-                    throw new FormatException(error);
-                }
-                return connectionString;
-            }
+            return connectionString;
 #pragma warning restore CS0618 // Type or member is obsolete
         }
 
         public void SetLightningUrl(LightningConnectionString connectionString)
         {
-            if (connectionString == null)
-                throw new ArgumentNullException(nameof(connectionString));
-
+            ArgumentNullException.ThrowIfNull(connectionString);
 #pragma warning disable CS0618 // Type or member is obsolete
             LightningConnectionString = connectionString.ToString();
-            Username = null;
-            Password = null;
-            LightningChargeUrl = null;
 #pragma warning restore CS0618 // Type or member is obsolete
         }
 
-        public ILightningClient CreateClient(BTCPayNetwork network)
+        public string GetDisplayableConnectionString()
         {
-            return LightningClientFactory.CreateClient(this.GetLightningUrl(), network.NBitcoinNetwork);
+#pragma warning disable CS0618 // Type or member is obsolete
+            if (!string.IsNullOrEmpty(LightningConnectionString) &&
+                BTCPayServer.Lightning.LightningConnectionString.TryParse(LightningConnectionString, false, out var conn))
+                return conn.ToString();
+#pragma warning restore CS0618 // Type or member is obsolete
+            if (InternalNodeRef is string s)
+                return s;
+            return "Invalid connection string";
+        }
+
+        public void SetInternalNode()
+        {
+#pragma warning disable CS0618 // Type or member is obsolete
+            LightningConnectionString = null;
+            InternalNodeRef = InternalNode;
+#pragma warning restore CS0618 // Type or member is obsolete
+        }
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string? InternalNodeRef { get; set; }
+        [JsonIgnore]
+        public bool IsInternalNode
+        {
+            get
+            {
+#pragma warning disable CS0618 // Type or member is obsolete
+                return InternalNodeRef == InternalNode;
+#pragma warning restore CS0618 // Type or member is obsolete
+            }
         }
     }
 }

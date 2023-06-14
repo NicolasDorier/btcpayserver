@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace BTCPayServer.Models.StoreViewModels
 {
@@ -27,10 +23,6 @@ namespace BTCPayServer.Models.StoreViewModels
         {
             get; set;
         }
-        public string Facade
-        {
-            get; set;
-        }
         public string SIN
         {
             get; set;
@@ -43,7 +35,7 @@ namespace BTCPayServer.Models.StoreViewModels
 
         [Display(Name = "Pair to")]
         [Required]
-        public string SelectedStore
+        public string StoreId
         {
             get; set;
         }

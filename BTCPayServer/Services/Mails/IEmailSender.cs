@@ -1,12 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using MimeKit;
 
 namespace BTCPayServer.Services.Mails
 {
     public interface IEmailSender
     {
-        Task SendEmailAsync(string email, string subject, string message);
+        void SendEmail(MailboxAddress email, string subject, string message);
+        void SendEmail(MailboxAddress[] email, MailboxAddress[] cc, MailboxAddress[] bcc, string subject, string message);
     }
 }

@@ -1,39 +1,34 @@
-﻿using BTCPayServer.Configuration;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Security.Claims;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using BTCPayServer.Abstractions.Custodians;
+using BTCPayServer.Configuration;
 using BTCPayServer.HostedServices;
 using BTCPayServer.Hosting;
-using BTCPayServer.Payments;
-using BTCPayServer.Payments.Lightning;
 using BTCPayServer.Rating;
-using BTCPayServer.Security;
+using BTCPayServer.Services;
+using BTCPayServer.Services.Custodian.Client.MockCustodian;
 using BTCPayServer.Services.Invoices;
 using BTCPayServer.Services.Rates;
 using BTCPayServer.Services.Stores;
 using BTCPayServer.Tests.Logging;
 using BTCPayServer.Tests.Mocks;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Internal;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Controllers;
-using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using NBitcoin;
 using NBXplorer;
-using NBXplorer.DerivationStrategy;
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Net;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Security.Claims;
-using System.Security.Principal;
-using System.Text;
-using System.Threading;
-using Xunit;
+using AuthenticationSchemes = BTCPayServer.Abstractions.Constants.AuthenticationSchemes;
 
 namespace BTCPayServer.Tests
 {
@@ -45,10 +40,15 @@ namespace BTCPayServer.Tests
 
     public class BTCPayServerTester : IDisposable
     {
-        private string _Directory;
+        private readonly string _Directory;
 
-        public BTCPayServerTester(string scope)
+        public ILoggerProvider LoggerProvider { get; }
+
+        ILog TestLogs;
+        public BTCPayServerTester(ILog testLogs, ILoggerProvider loggerProvider, string scope)
         {
+            this.LoggerProvider = loggerProvider;
+            this.TestLogs = testLogs;
             this._Directory = scope ?? throw new ArgumentNullException(nameof(scope));
         }
 
@@ -58,6 +58,7 @@ namespace BTCPayServer.Tests
         }
 
         public Uri LTCNBXplorerUri { get; set; }
+        public Uri LBTCNBXplorerUri { get; set; }
 
         public Uri ServerUri
         {
@@ -74,6 +75,10 @@ namespace BTCPayServer.Tests
         {
             get; set;
         }
+        public string ExplorerPostgres
+        {
+            get; set;
+        }
 
         IWebHost _Host;
         public int Port
@@ -87,125 +92,189 @@ namespace BTCPayServer.Tests
         }
 
         public bool MockRates { get; set; } = true;
+        public string SocksEndpoint { get; set; }
 
-        public void Start()
+        public HashSet<string> Chains { get; set; } = new HashSet<string>() { "BTC" };
+        public bool UseLightning { get; set; }
+        public bool CheatMode { get; set; } = true;
+        public bool DisableRegistration { get; set; } = false;
+        public async Task StartAsync()
         {
             if (!Directory.Exists(_Directory))
                 Directory.CreateDirectory(_Directory);
-            string chain = NBXplorerDefaultSettings.GetFolderName(NetworkType.Regtest);
+            string chain = NBXplorerDefaultSettings.GetFolderName(ChainName.Regtest);
             string chainDirectory = Path.Combine(_Directory, chain);
             if (!Directory.Exists(chainDirectory))
                 Directory.CreateDirectory(chainDirectory);
 
-
             StringBuilder config = new StringBuilder();
             config.AppendLine($"{chain.ToLowerInvariant()}=1");
+            if (InContainer)
+            {
+                config.AppendLine($"bind=0.0.0.0");
+            }
             config.AppendLine($"port={Port}");
-            config.AppendLine($"chains=btc,ltc");
+            config.AppendLine($"chains={string.Join(',', Chains)}");
+            if (Chains.Contains("BTC", StringComparer.OrdinalIgnoreCase))
+            {
+                config.AppendLine($"btc.explorer.url={NBXplorerUri.AbsoluteUri}");
+                config.AppendLine($"btc.explorer.cookiefile=0");
+            }
 
-            config.AppendLine($"btc.explorer.url={NBXplorerUri.AbsoluteUri}");
-            config.AppendLine($"btc.explorer.cookiefile=0");
+            if (UseLightning)
+            {
+                config.AppendLine($"btc.lightning={IntegratedLightning}");
+                var localLndBackupFile = Path.Combine(_Directory, "walletunlock.json");
+                File.Copy(TestUtils.GetTestDataFullPath("LndSeedBackup/walletunlock.json"), localLndBackupFile, true);
+                config.AppendLine($"btc.external.lndseedbackup={localLndBackupFile}");
+            }
 
-            config.AppendLine($"ltc.explorer.url={LTCNBXplorerUri.AbsoluteUri}");
-            config.AppendLine($"ltc.explorer.cookiefile=0");
+            if (Chains.Contains("LTC", StringComparer.OrdinalIgnoreCase))
+            {
+                config.AppendLine($"ltc.explorer.url={LTCNBXplorerUri.AbsoluteUri}");
+                config.AppendLine($"ltc.explorer.cookiefile=0");
+            }
+            if (Chains.Contains("LBTC", StringComparer.OrdinalIgnoreCase))
+            {
+                config.AppendLine($"lbtc.explorer.url={LBTCNBXplorerUri.AbsoluteUri}");
+                config.AppendLine($"lbtc.explorer.cookiefile=0");
+            }
+            if (CheatMode)
+                config.AppendLine("cheatmode=1");
 
-            config.AppendLine($"btc.lightning={IntegratedLightning.AbsoluteUri}");
+            config.AppendLine($"torrcfile={TestUtils.GetTestDataFullPath("Tor/torrc")}");
+            config.AppendLine($"socksendpoint={SocksEndpoint}");
+            config.AppendLine($"debuglog=debug.log");
+            config.AppendLine($"nocsp={NoCSP.ToString().ToLowerInvariant()}");
+
+            if (!string.IsNullOrEmpty(SSHPassword) && string.IsNullOrEmpty(SSHKeyFile))
+                config.AppendLine($"sshpassword={SSHPassword}");
+            if (!string.IsNullOrEmpty(SSHKeyFile))
+                config.AppendLine($"sshkeyfile={SSHKeyFile}");
+            if (!string.IsNullOrEmpty(SSHConnection))
+                config.AppendLine($"sshconnection={SSHConnection}");
 
             if (TestDatabase == TestDatabases.MySQL && !String.IsNullOrEmpty(MySQL))
                 config.AppendLine($"mysql=" + MySQL);
             else if (!String.IsNullOrEmpty(Postgres))
                 config.AppendLine($"postgres=" + Postgres);
+
+            if (!string.IsNullOrEmpty(ExplorerPostgres))
+                config.AppendLine($"explorer.postgres=" + ExplorerPostgres);
             var confPath = Path.Combine(chainDirectory, "settings.config");
-            File.WriteAllText(confPath, config.ToString());
+            await File.WriteAllTextAsync(confPath, config.ToString());
 
             ServerUri = new Uri("http://" + HostName + ":" + Port + "/");
-
+            HttpClient = new HttpClient();
+            HttpClient.BaseAddress = ServerUri;
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
-            var conf = new DefaultConfiguration() { Logger = Logs.LogProvider.CreateLogger("Console") }.CreateConfiguration(new[] { "--datadir", _Directory, "--conf", confPath });
+            var conf = new DefaultConfiguration() { Logger = LoggerProvider.CreateLogger("Console") }.CreateConfiguration(new[] { "--datadir", _Directory, "--conf", confPath, "--disable-registration", DisableRegistration ? "true" : "false" });
             _Host = new WebHostBuilder()
                     .UseConfiguration(conf)
+                    .UseContentRoot(FindBTCPayServerDirectory())
+                    .UseWebRoot(Path.Combine(FindBTCPayServerDirectory(), "wwwroot"))
                     .ConfigureServices(s =>
                     {
                         s.AddLogging(l =>
                         {
+                            l.AddFilter("System.Net.Http.HttpClient", LogLevel.Critical);
                             l.SetMinimumLevel(LogLevel.Information)
                             .AddFilter("Microsoft", LogLevel.Error)
                             .AddFilter("Hangfire", LogLevel.Error)
-                            .AddProvider(Logs.LogProvider);
+                            .AddFilter("Fido2NetLib.DistributedCacheMetadataService", LogLevel.Error)
+                            .AddProvider(LoggerProvider);
                         });
+                    })
+                    .ConfigureServices(services =>
+                    {
+                        services.TryAddSingleton<IFeeProviderFactory>(new BTCPayServer.Services.Fees.FixedFeeProvider(new FeeRate(100L, 1)));
+                        services.AddSingleton<ICustodian, MockCustodian>();
                     })
                     .UseKestrel()
                     .UseStartup<Startup>()
                     .Build();
-            _Host.Start();
+            await _Host.StartWithTasksAsync();
+
+            var urls = _Host.ServerFeatures.Get<IServerAddressesFeature>().Addresses;
+            foreach (var url in urls)
+            {
+                TestLogs.LogInformation("Listening on " + url);
+            }
+            TestLogs.LogInformation("Server URI " + ServerUri);
+
             InvoiceRepository = (InvoiceRepository)_Host.Services.GetService(typeof(InvoiceRepository));
             StoreRepository = (StoreRepository)_Host.Services.GetService(typeof(StoreRepository));
-            var dashBoard = (NBXplorerDashboard)_Host.Services.GetService(typeof(NBXplorerDashboard));
-            while(!dashBoard.IsFullySynched())
-            {
-                Thread.Sleep(10);
-            }
+            Networks = (BTCPayNetworkProvider)_Host.Services.GetService(typeof(BTCPayNetworkProvider));
 
             if (MockRates)
             {
                 var rateProvider = (RateProviderFactory)_Host.Services.GetService(typeof(RateProviderFactory));
                 rateProvider.Providers.Clear();
 
-                var coinAverageMock = new MockRateProvider();
-                coinAverageMock.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "coinaverage",
-                    CurrencyPair = CurrencyPair.Parse("BTC_USD"),
-                    BidAsk = new BidAsk(5000m)
-                });
-                coinAverageMock.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "coinaverage",
-                    CurrencyPair = CurrencyPair.Parse("BTC_CAD"),
-                    BidAsk = new BidAsk(4500m)
-                });
-                coinAverageMock.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "coinaverage",
-                    CurrencyPair = CurrencyPair.Parse("LTC_BTC"),
-                    BidAsk = new BidAsk(0.001m)
-                });
-                coinAverageMock.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "coinaverage",
-                    CurrencyPair = CurrencyPair.Parse("LTC_USD"),
-                    BidAsk = new BidAsk(500m)
-                });
-                rateProvider.Providers.Add("coinaverage", coinAverageMock);
+                coinAverageMock = new MockRateProvider();
+                coinAverageMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_USD"), new BidAsk(5000m)));
+                coinAverageMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_EUR"), new BidAsk(4000m)));
+                coinAverageMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_CAD"), new BidAsk(4500m)));
+                coinAverageMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_LTC"), new BidAsk(162m)));
+                coinAverageMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("LTC_USD"), new BidAsk(500m)));
+                rateProvider.Providers.Add("coingecko", coinAverageMock);
 
                 var bitflyerMock = new MockRateProvider();
-                bitflyerMock.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "bitflyer",
-                    CurrencyPair = CurrencyPair.Parse("BTC_JPY"),
-                    BidAsk = new BidAsk(700000m)
-                });
+                bitflyerMock.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_JPY"), new BidAsk(700000m)));
                 rateProvider.Providers.Add("bitflyer", bitflyerMock);
 
-                var quadrigacx = new MockRateProvider();
-                quadrigacx.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "quadrigacx",
-                    CurrencyPair = CurrencyPair.Parse("BTC_CAD"),
-                    BidAsk = new BidAsk(6000m)
-                });
-                rateProvider.Providers.Add("quadrigacx", quadrigacx);
+                var ndax = new MockRateProvider();
+                ndax.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("BTC_CAD"), new BidAsk(6000m)));
+                rateProvider.Providers.Add("ndax", ndax);
 
                 var bittrex = new MockRateProvider();
-                bittrex.ExchangeRates.Add(new Rating.ExchangeRate()
-                {
-                    Exchange = "bittrex",
-                    CurrencyPair = CurrencyPair.Parse("DOGE_BTC"),
-                    BidAsk = new BidAsk(0.004m)
-                });
+                bittrex.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("DOGE_BTC"), new BidAsk(0.004m)));
                 rateProvider.Providers.Add("bittrex", bittrex);
+
+
+                var bitfinex = new MockRateProvider();
+                bitfinex.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("UST_BTC"), new BidAsk(0.000136m)));
+                rateProvider.Providers.Add("bitfinex", bitfinex);
+
+                var bitpay = new MockRateProvider();
+                bitpay.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("ETB_BTC"), new BidAsk(0.1m)));
+                rateProvider.Providers.Add("bitpay", bitpay);
+                var kraken = new MockRateProvider();
+                kraken.ExchangeRates.Add(new PairRate(CurrencyPair.Parse("ETH_BTC"), new BidAsk(0.1m)));
+                rateProvider.Providers.Add("kraken", kraken);
+            }
+
+
+            TestLogs.LogInformation("Waiting site is operational...");
+            await WaitSiteIsOperational();
+            TestLogs.LogInformation("Site is now operational");
+        }
+        MockRateProvider coinAverageMock;
+        private async Task WaitSiteIsOperational()
+        {
+            _ = HttpClient.GetAsync("/").ConfigureAwait(false);
+            using var cts = new CancellationTokenSource(20_000);
+            var synching = WaitIsFullySynched(cts.Token);
+            await Task.WhenAll(synching).ConfigureAwait(false);
+            // Opportunistic call to wake up view compilation in debug mode, we don't need to await.
+        }
+
+        private async Task WaitIsFullySynched(CancellationToken cancellationToken)
+        {
+            var dashBoard = GetService<NBXplorerDashboard>();
+            while (!dashBoard.IsFullySynched())
+            {
+                await Task.Delay(10, cancellationToken).ConfigureAwait(false);
             }
         }
+
+        private string FindBTCPayServerDirectory()
+        {
+            var solutionDirectory = TestUtils.TryGetSolutionDirectoryInfo(Directory.GetCurrentDirectory());
+            return Path.Combine(solutionDirectory.FullName, "BTCPayServer");
+        }
+
+        public HttpClient HttpClient { get; set; }
 
         public string HostName
         {
@@ -214,7 +283,8 @@ namespace BTCPayServer.Tests
         }
         public InvoiceRepository InvoiceRepository { get; private set; }
         public StoreRepository StoreRepository { get; private set; }
-        public Uri IntegratedLightning { get; internal set; }
+        public BTCPayNetworkProvider Networks { get; private set; }
+        public string IntegratedLightning { get; internal set; }
         public bool InContainer { get; internal set; }
 
         public T GetService<T>()
@@ -222,7 +292,14 @@ namespace BTCPayServer.Tests
             return _Host.Services.GetRequiredService<T>();
         }
 
-        public T GetController<T>(string userId = null, string storeId = null, Claim[] additionalClaims = null) where T : Controller
+        public IServiceProvider ServiceProvider => _Host.Services;
+
+        public string SSHPassword { get; internal set; }
+        public string SSHKeyFile { get; internal set; }
+        public string SSHConnection { get; set; }
+        public bool NoCSP { get; set; }
+
+        public T GetController<T>(string userId = null, string storeId = null, bool isAdmin = false) where T : Controller
         {
             var context = new DefaultHttpContext();
             context.Request.Host = new HostString("127.0.0.1", Port);
@@ -232,9 +309,9 @@ namespace BTCPayServer.Tests
             {
                 List<Claim> claims = new List<Claim>();
                 claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
-                if (additionalClaims != null)
-                    claims.AddRange(additionalClaims);
-                context.User = new ClaimsPrincipal(new ClaimsIdentity(claims.ToArray(), Policies.CookieAuthentication));
+                if (isAdmin)
+                    claims.Add(new Claim(ClaimTypes.Role, Roles.ServerAdmin));
+                context.User = new ClaimsPrincipal(new ClaimsIdentity(claims.ToArray(), AuthenticationSchemes.Cookie));
             }
             if (storeId != null)
             {
@@ -261,6 +338,21 @@ namespace BTCPayServer.Tests
         {
             if (_Host != null)
                 _Host.Dispose();
+        }
+
+        public void ChangeRate(string pair, BidAsk bidAsk)
+        {
+            var p = CurrencyPair.Parse(pair);
+            var index = coinAverageMock.ExchangeRates.FindIndex(o => o.CurrencyPair == p);
+            coinAverageMock.ExchangeRates[index] = new PairRate(p, bidAsk);
+        }
+
+        public async Task EnableExperimental()
+        {
+            var r = GetService<SettingsRepository>();
+            var p = await r.GetSettingAsync<PoliciesSettings>() ?? new PoliciesSettings();
+            p.Experimental = true;
+            await r.UpdateSetting(p);
         }
     }
 }

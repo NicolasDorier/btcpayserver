@@ -1,84 +1,86 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿ <Project Sdk="Microsoft.NET.Sdk.Web">
+  <Import Project="../Build/Version.csproj" Condition="Exists('../Build/Version.csproj')" />
+  <Import Project="../Build/Common.csproj" />
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.1</TargetFramework>
-		<Version>1.0.3.16</Version>
-    <NoWarn>NU1701,CA1816,CA1308,CA1810,CA2208</NoWarn>
+    <PreserveCompilationContext>true</PreserveCompilationContext>
+    <RunAnalyzersDuringLiveAnalysis>False</RunAnalyzersDuringLiveAnalysis>
+    <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
   </PropertyGroup>
-  <PropertyGroup>
-    <LangVersion>7.3</LangVersion>
-  </PropertyGroup>
+   <ItemGroup>
+     <AssemblyAttribute Condition="'$(GitCommit)' != ''" Include="BTCPayServer.GitCommitAttribute">
+       <_Parameter1>$(GitCommit)</_Parameter1>
+     </AssemblyAttribute>
+   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="Build\dockerfiles\**" />
-    <Compile Remove="wwwroot\bundles\jqueryvalidate\**" />
-    <Compile Remove="wwwroot\css\**" />
+    <Compile Remove="Build\**" />
     <Compile Remove="wwwroot\vendor\jquery-nice-select\**" />
-    <Content Remove="Build\dockerfiles\**" />
-    <Content Remove="wwwroot\bundles\jqueryvalidate\**" />
-    <Content Remove="wwwroot\css\**" />
+    <Content Remove="Build\**" />
     <Content Remove="wwwroot\vendor\jquery-nice-select\**" />
-    <EmbeddedResource Remove="Build\dockerfiles\**" />
-    <EmbeddedResource Remove="wwwroot\bundles\jqueryvalidate\**" />
-    <EmbeddedResource Remove="wwwroot\css\**" />
+    <EmbeddedResource Remove="Build\**" />
     <EmbeddedResource Remove="wwwroot\vendor\jquery-nice-select\**" />
-    <None Remove="Build\dockerfiles\**" />
-    <None Remove="wwwroot\bundles\jqueryvalidate\**" />
-    <None Remove="wwwroot\css\**" />
+    <None Remove="Build\**" />
     <None Remove="wwwroot\vendor\jquery-nice-select\**" />
+    <Content Update="Views\UIStorePullPayments\NewPullPayment.cshtml">
+      <Pack>false</Pack>
+    </Content>
+    <Content Update="Views\UIStorePullPayments\PullPayments.cshtml">
+      <Pack>false</Pack>
+    </Content>
+    <Content Update="Views\UIAccount\_ViewImports.cshtml">
+      <Pack>false</Pack>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Remove="Currencies.txt" />
   </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Currencies.txt" />
+
+  <ItemGroup Condition="'$(Altcoins)' != 'true'">
+    <Content Remove="Services\Altcoins\**\*" />
+    <Content Remove="Views\UIMoneroLikeStore\**\*" />
+    <Content Remove="Views\UIZcashLikeStore\**\*" />
+    <Content Remove="Views\Shared\Monero\**\*" />
+    <Content Remove="Views\Shared\Zcash\**\*" />
   </ItemGroup>
+
   <ItemGroup>
-    <PackageReference Include="BTCPayServer.Lightning.All" Version="1.1.0.2" />
-    <PackageReference Include="BuildBundlerMinifier" Version="2.7.385" />
-    <PackageReference Include="DigitalRuby.ExchangeSharp" Version="0.5.3" />
-    <PackageReference Include="Hangfire" Version="1.6.20" />
-    <PackageReference Include="Hangfire.MemoryStorage" Version="1.5.2" />
-    <PackageReference Include="LedgerWallet" Version="2.0.0.3" />
-    <PackageReference Include="Meziantou.AspNetCore.BundleTagHelpers" Version="2.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="2.1.4" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Filter" Version="1.1.2" />
-    <PackageReference Include="Microsoft.NetCore.Analyzers" Version="2.6.2">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="NBitcoin" Version="4.1.1.71" />
-    <PackageReference Include="NBitpayClient" Version="1.0.0.30" />	  
-    <PackageReference Include="DBreeze" Version="1.92.0" />
-    <PackageReference Include="NBXplorer.Client" Version="1.0.3.11" />
+    <PackageReference Include="BIP78.Sender" Version="0.2.2" />
+    <PackageReference Include="BTCPayServer.Hwi" Version="2.0.2" />
+    <PackageReference Include="BTCPayServer.Lightning.All" Version="1.4.9" />
+    <PackageReference Include="CsvHelper" Version="15.0.5" />
+    <PackageReference Include="Dapper" Version="2.0.123" />
+    <PackageReference Include="Fido2" Version="2.0.2" />
+    <PackageReference Include="Fido2.AspNet" Version="2.0.2" />
+    <PackageReference Include="HtmlSanitizer" Version="5.0.372" />
+    <PackageReference Include="LNURL" Version="0.0.26" />
+    <PackageReference Include="MailKit" Version="3.3.0" />
+    <PackageReference Include="McMaster.NETCore.Plugins.Mvc" Version="1.4.0" />
+    <PackageReference Include="QRCoder" Version="1.4.3" />
+    <PackageReference Include="System.IO.Pipelines" Version="6.0.3" />
+    <PackageReference Include="NBitpayClient" Version="1.0.0.39" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
     <PackageReference Include="NicolasDorier.CommandLine" Version="1.0.0.2" />
     <PackageReference Include="NicolasDorier.CommandLine.Configuration" Version="1.0.0.3" />
-    <PackageReference Include="NicolasDorier.RateLimits" Version="1.0.0.3" />
-    <PackageReference Include="NicolasDorier.StandardConfiguration" Version="1.0.0.18" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="2.1.2" />
-    <PackageReference Include="Pomelo.EntityFrameworkCore.MySql" Version="2.1.2" />
-    <PackageReference Include="Serilog" Version="2.7.1" />
-    <PackageReference Include="Serilog.AspNetCore" Version="2.1.1" />
-    <PackageReference Include="Serilog.Sinks.File" Version="4.0.0" />
-    <PackageReference Include="SSH.NET" Version="2016.1.0" />
-    <PackageReference Include="System.Xml.XmlSerializer" Version="4.3.0" />
-    <PackageReference Include="Text.Analyzers" Version="2.6.2">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
+    <PackageReference Include="NicolasDorier.RateLimits" Version="1.2.3" />
+    <PackageReference Include="Serilog" Version="2.9.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="3.2.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="4.1.0" />
+    <PackageReference Include="SSH.NET" Version="2020.0.2" />
   </ItemGroup>
 
 	<ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.1.6" />
-		<PackageReference Include="YamlDotNet" Version="5.2.1" />
-	</ItemGroup>
+    <PackageReference Include="TwentyTwenty.Storage" Version="2.12.1" />
+    <PackageReference Include="TwentyTwenty.Storage.Amazon" Version="2.12.1" />
+    <PackageReference Include="TwentyTwenty.Storage.Azure" Version="2.12.1" />
+    <PackageReference Include="TwentyTwenty.Storage.Google" Version="2.12.1" />
+    <PackageReference Include="TwentyTwenty.Storage.Local" Version="2.12.1" />
+		<PackageReference Include="YamlDotNet" Version="8.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="6.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="6.0.9" />
+  </ItemGroup>
 
 	<ItemGroup>
-		<DotNetCliToolReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Tools" Version="2.0.0" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <None Include="wwwroot\checkout\js\core.js" />
-	  <None Include="wwwroot\vendor\bootstrap4-creativestart\creative.js" />
 	  <None Include="wwwroot\vendor\font-awesome\fonts\fontawesome-webfont.svg" />
 	  <None Include="wwwroot\vendor\font-awesome\fonts\fontawesome-webfont.woff2" />
 	  <None Include="wwwroot\vendor\font-awesome\less\animated.less" />
@@ -114,72 +116,102 @@
 	  <None Include="wwwroot\vendor\jquery-easing\jquery.easing.min.js" />
 	  <None Include="wwwroot\vendor\jquery\jquery.js" />
 	  <None Include="wwwroot\vendor\jquery\jquery.min.js" />
-	  <None Include="wwwroot\vendor\magnific-popup\jquery.magnific-popup.js" />
-	  <None Include="wwwroot\vendor\magnific-popup\jquery.magnific-popup.min.js" />
-	  <None Include="wwwroot\vendor\popper\popper.js" />
-	  <None Include="wwwroot\vendor\popper\popper.min.js" />
-	  <None Include="wwwroot\vendor\scrollreveal\scrollreveal.js" />
-	  <None Include="wwwroot\vendor\scrollreveal\scrollreveal.min.js" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Build\" />
+	  <Folder Include="wwwroot\vendor\bootstrap" />
 	  <Folder Include="wwwroot\vendor\clipboard.js\" />
 	  <Folder Include="wwwroot\vendor\highlightjs\" />
+	  <Folder Include="wwwroot\vendor\summernote" />
+	  <Folder Include="wwwroot\vendor\ur-registry" />
+	  <Folder Include="wwwroot\vendor\vue-qrcode-reader" />
 	</ItemGroup>
 
 	<ItemGroup>
-    <Content Update="Views\Apps\_ViewImports.cshtml">
+	  <ProjectReference Include="..\BTCPayServer.Abstractions\BTCPayServer.Abstractions.csproj" />
+	  <ProjectReference Include="..\BTCPayServer.Client\BTCPayServer.Client.csproj" />
+	  <ProjectReference Include="..\BTCPayServer.Data\BTCPayServer.Data.csproj" />
+	  <ProjectReference Include="..\BTCPayServer.Rating\BTCPayServer.Rating.csproj" />
+	  <ProjectReference Include="..\BTCPayServer.Common\BTCPayServer.Common.csproj" />
+	  <ProjectReference Include="..\Plugins\BTCPayServer.Plugins.Custodians.FakeCustodian\BTCPayServer.Plugins.Custodians.FakeCustodian.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+    <Watch Include="Views\**\*.*"></Watch>
+    <Content Update="Views\UIApps\_ViewImports.cshtml">
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
-    <Content Update="Views\Server\LndRestServices.cshtml">
+    <Content Update="Views\UIServer\DynamicDnsServices.cshtml">
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
-    <Content Update="Views\Server\SSHService.cshtml">
+    <Content Update="Views\UIServer\LightningChargeServices.cshtml">
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
-    <Content Update="Views\Stores\ShowToken.cshtml">
+    <Content Update="Views\UIServer\LightningWalletServices.cshtml">
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
-    <Content Update="Views\Stores\PayButtonEnable.cshtml">
+    <Content Update="Views\UIServer\LndSeedBackup.cshtml">
       <Pack>$(IncludeRazorContentInPack)</Pack>
     </Content>
-	  <Content Update="Views\Stores\PayButton.cshtml">
+    <Content Update="Views\UIServer\RPCService.cshtml">
+      <Pack>$(IncludeRazorContentInPack)</Pack>
+    </Content>
+    <Content Update="Views\UIServer\P2PService.cshtml">
+      <Pack>$(IncludeRazorContentInPack)</Pack>
+    </Content>
+    <Content Update="Views\UIServer\DynamicDnsService.cshtml">
+      <Pack>$(IncludeRazorContentInPack)</Pack>
+    </Content>
+    <Content Update="Views\UIServer\SSHService.cshtml">
+      <Pack>$(IncludeRazorContentInPack)</Pack>
+    </Content>
+    <Content Update="Views\UIStores\ShowToken.cshtml">
+      <Pack>$(IncludeRazorContentInPack)</Pack>
+    </Content>
+	  <Content Update="Views\UIPublic\PayButtonHandle.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Public\PayButtonHandle.cshtml">
+	  <Content Update="Views\UIServer\LndServices.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Server\LndGrpcServices.cshtml">
+	  <Content Update="Views\UIServer\Maintenance.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Server\Maintenance.cshtml">
+	  <Content Update="Views\UIServer\Services.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Server\Services.cshtml">
+	  <Content Update="Views\UIWallets\ListWallets.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\ListWallets.cshtml">
+	  <Content Update="Views\UIWallets\WalletPSBTCombine.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\WalletRescan.cshtml">
+	  <Content Update="Views\Wallets\WalletPSBTReady.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\WalletSendLedger.cshtml">
+	  <Content Update="Views\UIWallets\WalletPSBT.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\WalletTransactions.cshtml">
+	  <Content Update="Views\UIWallets\WalletRescan.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\_Nav.cshtml">
+	  <Content Update="Views\UIWallets\WalletSendVault.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\_ViewImports.cshtml">
+	  <Content Update="Views\UIWallets\WalletTransactions.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
-	  <Content Update="Views\Wallets\_ViewStart.cshtml">
+	  <Content Update="Views\UIWallets\_Nav.cshtml">
+	    <Pack>$(IncludeRazorContentInPack)</Pack>
+	  </Content>
+	  <Content Update="Views\UIWallets\_ViewImports.cshtml">
+	    <Pack>$(IncludeRazorContentInPack)</Pack>
+	  </Content>
+	  <Content Update="Views\UIWallets\_ViewStart.cshtml">
 	    <Pack>$(IncludeRazorContentInPack)</Pack>
 	  </Content>
 	</ItemGroup>
+
+	<ProjectExtensions><VisualStudio><UserProperties wwwroot_4swagger_4v1_4swagger_1template_1invoices_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1misc_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1pull-payments_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1serverinfo_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1stores_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1users_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" wwwroot_4swagger_4v1_4swagger_1template_1webhooks_1json__JsonSchema="https://raw.githubusercontent.com/OAI/OpenAPI-Specification/master/schemas/v3.0/schema.json" /></VisualStudio></ProjectExtensions>
 </Project>

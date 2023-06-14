@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using BTCPayServer.Services.Invoices;
-
 namespace BTCPayServer.Payments
 {
     /// <summary>
-    /// This class represent a mode of payment supported by a store.
-    /// It is stored at the store level and cloned to the invoice during invoice creation.
+    /// A class for configuration of a type of payment method stored on a store level.
+    /// It is cloned to invoices of the store during invoice creation.
     /// This object will be serialized in database in json
     /// </summary>
     public interface ISupportedPaymentMethod

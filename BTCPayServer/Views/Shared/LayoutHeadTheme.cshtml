@@ -1,0 +1,16 @@
+@using BTCPayServer.Abstractions.Extensions
+@using BTCPayServer.Services
+@inject ThemeSettings Theme
+
+@if (Theme.CustomTheme)
+{
+    <link href="@Context.Request.GetRelativePathOrAbsolute(Theme.CssUri)" rel="stylesheet" asp-append-version="true" />
+}
+else
+{
+    <link href="~/main/themes/default.css" asp-append-version="true" rel="stylesheet" />
+    <link href="~/main/themes/default-dark.css" asp-append-version="true" rel="stylesheet" id="DarkThemeLinkTag" />
+    <script src="~/js/theme-switch.js" asp-append-version="true"></script>
+    <noscript><style>.btcpay-theme-switch { display: none !important; }</style></noscript>
+}
+

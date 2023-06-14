@@ -1,6 +1,5 @@
-﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using BTCPayServer.Rating;
 using BTCPayServer.Services.Rates;
@@ -9,10 +8,15 @@ namespace BTCPayServer.Tests.Mocks
 {
     public class MockRateProvider : IRateProvider
     {
-        public ExchangeRates ExchangeRates { get; set; } = new ExchangeRates();
-        public Task<ExchangeRates> GetRatesAsync()
+        public List<PairRate> ExchangeRates { get; set; } = new List<PairRate>();
+
+        public MockRateProvider()
         {
-            return Task.FromResult(ExchangeRates);
+
+        }
+        public Task<PairRate[]> GetRatesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(ExchangeRates.ToArray());
         }
     }
 }

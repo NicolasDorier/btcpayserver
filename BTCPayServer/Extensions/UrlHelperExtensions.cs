@@ -1,29 +1,77 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+
+using BTCPayServer;
+using BTCPayServer.Client.Models;
 using BTCPayServer.Controllers;
+using BTCPayServer.Services.Apps;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 namespace Microsoft.AspNetCore.Mvc
 {
     public static class UrlHelperExtensions
     {
-        public static string EmailConfirmationLink(this IUrlHelper urlHelper, string userId, string code, string scheme)
+        public static string EmailConfirmationLink(this LinkGenerator urlHelper, string userId, string code, string scheme, HostString host, string pathbase)
         {
-            return urlHelper.Action(
-                action: nameof(AccountController.ConfirmEmail),
-                controller: "Account",
-                values: new { userId, code },
-                protocol: scheme);
+            return urlHelper.GetUriByAction(nameof(UIAccountController.ConfirmEmail), "UIAccount",
+                new { userId, code }, scheme, host, pathbase);
         }
 
-        public static string ResetPasswordCallbackLink(this IUrlHelper urlHelper, string userId, string code, string scheme)
+        public static string ResetPasswordCallbackLink(this LinkGenerator urlHelper, string userId, string code, string scheme, HostString host, string pathbase)
         {
-            return urlHelper.Action(
-                action: nameof(AccountController.ResetPassword),
-                controller: "Account",
+            return urlHelper.GetUriByAction(
+                action: nameof(UIAccountController.SetPassword),
+                controller: "UIAccount",
                 values: new { userId, code },
-                protocol: scheme);
+                scheme: scheme,
+                host: host,
+                pathBase: pathbase
+            );
+        }
+
+        public static string PaymentRequestLink(this LinkGenerator urlHelper, string paymentRequestId, string scheme, HostString host, string pathbase)
+        {
+            return urlHelper.GetUriByAction(
+                action: nameof(UIPaymentRequestController.ViewPaymentRequest),
+                controller: "UIPaymentRequest",
+                values: new { payReqId = paymentRequestId },
+                scheme, host, pathbase);
+        }
+
+        public static string AppLink(this LinkGenerator urlHelper, string appId, string scheme, HostString host, string pathbase)
+        {
+            return urlHelper.GetUriByAction(
+                action: nameof(UIAppsController.RedirectToApp),
+                controller: "UIApps",
+                values: new { appId },
+                scheme, host, pathbase);
+        }
+
+        public static string InvoiceLink(this LinkGenerator urlHelper, string invoiceId, string scheme, HostString host, string pathbase)
+        {
+            return urlHelper.GetUriByAction(
+                action: nameof(UIInvoiceController.Invoice),
+                controller: "UIInvoice",
+                values: new { invoiceId },
+                scheme, host, pathbase);
+        }
+
+        public static string CheckoutLink(this LinkGenerator urlHelper, string invoiceId, string scheme, HostString host, string pathbase)
+        {
+            return urlHelper.GetUriByAction(
+                action: nameof(UIInvoiceController.Checkout),
+                controller: "UIInvoice",
+                values: new { invoiceId },
+                scheme, host, pathbase);
+        }
+
+        public static string PayoutLink(this LinkGenerator urlHelper, string walletIdOrStoreId, string pullPaymentId, PayoutState payoutState,string scheme, HostString host, string pathbase)
+        {
+            WalletId.TryParse(walletIdOrStoreId, out var wallet);
+            return urlHelper.GetUriByAction(
+                action: nameof(UIStorePullPaymentsController.Payouts),
+                controller: "UIStorePullPayments",
+                values: new { storeId = wallet?.StoreId ?? walletIdOrStoreId, pullPaymentId, payoutState },
+                scheme, host, pathbase);
         }
     }
 }
