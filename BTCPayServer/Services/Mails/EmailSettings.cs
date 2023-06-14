@@ -1,65 +1,89 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Net;
-using System.Net.Mail;
+using System.Threading;
 using System.Threading.Tasks;
+using BTCPayServer.Client.Models;
+using BTCPayServer.Validation;
+using MailKit.Net.Smtp;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using MimeKit;
 
 namespace BTCPayServer.Services.Mails
 {
-    public class EmailSettings
+    public class EmailSettings : EmailSettingsData
     {
-        public string Server
-        {
-            get; set;
-        }
-
-        public int? Port
-        {
-            get; set;
-        }
-
-        public String Login
-        {
-            get; set;
-        }
-
-        public String Password
-        {
-            get; set;
-        }
-        [EmailAddress]
-        public string From
-        {
-            get; set;
-        }
-
-        public bool EnableSSL
-        {
-            get; set;
-        }
-
         public bool IsComplete()
         {
-            SmtpClient smtp = null;
-            try
-            {
-                smtp = CreateSmtpClient();
-                return true;
-            }
-            catch { }
-            return false;
+            return MailboxAddressValidator.IsMailboxAddress(From)
+                && !string.IsNullOrWhiteSpace(Server)
+                && Port is int;
         }
 
-        public SmtpClient CreateSmtpClient()
+        public void Validate(string prefixKey, ModelStateDictionary modelState)
         {
-            SmtpClient client = new SmtpClient(Server, Port.Value);
-            client.EnableSsl = EnableSSL;
-            client.UseDefaultCredentials = false;
-            client.Credentials = new NetworkCredential(Login, Password);
-            client.DeliveryMethod = SmtpDeliveryMethod.Network;
-            client.Timeout = 10000;
+            if (string.IsNullOrWhiteSpace(From))
+            {
+                modelState.AddModelError($"{prefixKey}{nameof(From)}", new RequiredAttribute().FormatErrorMessage(nameof(From)));
+            }
+            if (!MailboxAddressValidator.IsMailboxAddress(From))
+            {
+                modelState.AddModelError($"{prefixKey}{nameof(From)}", MailboxAddressAttribute.ErrorMessageConst);
+            }
+            if (string.IsNullOrWhiteSpace(Server))
+            {
+                modelState.AddModelError($"{prefixKey}{nameof(Server)}", new RequiredAttribute().FormatErrorMessage(nameof(Server)));
+            }
+            if (Port is null)
+            {
+                modelState.AddModelError($"{prefixKey}{nameof(Port)}", new RequiredAttribute().FormatErrorMessage(nameof(Port)));
+            }
+        }
+
+        public MimeMessage CreateMailMessage(MailboxAddress to, string subject, string message, bool isHtml) =>
+            CreateMailMessage(new[] {to}, null, null, subject, message, isHtml);
+        public MimeMessage CreateMailMessage(MailboxAddress[] to, MailboxAddress[] cc, MailboxAddress[] bcc, string subject, string message, bool isHtml)
+        {
+            var bodyBuilder = new BodyBuilder();
+            if (isHtml)
+            {
+                bodyBuilder.HtmlBody = message;
+            }
+            else
+            {
+                bodyBuilder.TextBody = message;
+            }
+
+            var mm = new MimeMessage();
+            mm.Body = bodyBuilder.ToMessageBody();
+            mm.Subject = subject;
+            mm.From.Add(MailboxAddressValidator.Parse(From));
+            mm.To.AddRange(to);
+            mm.Cc.AddRange(cc ?? System.Array.Empty<InternetAddress>());
+            mm.Bcc.AddRange(bcc ?? System.Array.Empty<InternetAddress>());
+            return mm;
+        }
+
+        public async Task<SmtpClient> CreateSmtpClient()
+        {
+            SmtpClient client = new SmtpClient();
+            using var connectCancel = new CancellationTokenSource(10000);
+            try
+            {
+                if (DisableCertificateCheck)
+                {
+                    client.CheckCertificateRevocation = false;
+#pragma warning disable CA5359 // Do Not Disable Certificate Validation
+                    client.ServerCertificateValidationCallback = (s, c, h, e) => true;
+#pragma warning restore CA5359 // Do Not Disable Certificate Validation
+                }
+                await client.ConnectAsync(Server, Port.Value, MailKit.Security.SecureSocketOptions.Auto, connectCancel.Token);
+                if ((client.Capabilities & SmtpCapabilities.Authentication) != 0)
+                    await client.AuthenticateAsync(Login ?? string.Empty, Password ?? string.Empty, connectCancel.Token);
+            }
+            catch
+            {
+                client.Dispose();
+                throw;
+            }
             return client;
         }
     }

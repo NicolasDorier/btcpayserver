@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Linq;
-using System.Threading.Tasks;
-using BTCPayServer.Services.Invoices;
+using BTCPayServer.Client.Models;
 using NBitcoin;
 using Newtonsoft.Json;
 
@@ -10,39 +8,57 @@ namespace BTCPayServer.Payments.Bitcoin
 {
     public class BitcoinLikeOnChainPaymentMethod : IPaymentMethodDetails
     {
-        public PaymentTypes GetPaymentType()
-        {
-            return PaymentTypes.BTCLike;
-        }
+        public PaymentType GetPaymentType() => PaymentTypes.BTCLike;
 
         public string GetPaymentDestination()
         {
             return DepositAddress;
         }
 
-        public decimal GetTxFee()
+        public decimal GetNextNetworkFee()
         {
-            return TxFee.ToDecimal(MoneyUnit.BTC);
+            // NextNetworkFee is sometimes not initialized properly, so we return 0 in that case
+            return NextNetworkFee?.ToDecimal(MoneyUnit.BTC) ?? 0;
         }
 
-        public void SetNoTxFee()
+        public decimal GetFeeRate()
         {
-            TxFee = Money.Zero;
+            return FeeRate?.SatoshiPerByte ?? 0;
         }
 
-
-        public void SetPaymentDestination(string newPaymentDestination)
+        public void SetPaymentDetails(IPaymentMethodDetails newPaymentMethodDetails)
         {
-            DepositAddress = newPaymentDestination;
+            DepositAddress = newPaymentMethodDetails.GetPaymentDestination();
+            KeyPath = (newPaymentMethodDetails as BitcoinLikeOnChainPaymentMethod)?.KeyPath;
         }
+        public bool Activated { get; set; } = true;
+        public NetworkFeeMode NetworkFeeMode { get; set; }
 
+        FeeRate _NetworkFeeRate;
+        [JsonConverter(typeof(NBitcoin.JsonConverters.FeeRateJsonConverter))]
+        public FeeRate NetworkFeeRate
+        {
+            get
+            {
+                // Some old invoices don't have this field set, so we fallback on FeeRate
+                return _NetworkFeeRate ?? FeeRate;
+            }
+            set
+            {
+                _NetworkFeeRate = value;
+            }
+        }
+        public bool PayjoinEnabled { get; set; }
         // Those properties are JsonIgnore because their data is inside CryptoData class for legacy reason
         [JsonIgnore]
         public FeeRate FeeRate { get; set; }
         [JsonIgnore]
-        public Money TxFee { get; set; }
+        public Money NextNetworkFee { get; set; }
         [JsonIgnore]
         public String DepositAddress { get; set; }
+        [JsonConverter(typeof(NBitcoin.JsonConverters.KeyPathJsonConverter))]
+        public KeyPath KeyPath { get; set; }
+
         public BitcoinAddress GetDepositAddress(Network network)
         {
             return string.IsNullOrEmpty(DepositAddress) ? null : BitcoinAddress.Create(DepositAddress, network);

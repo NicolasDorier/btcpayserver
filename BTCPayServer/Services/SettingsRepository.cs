@@ -1,47 +1,44 @@
-﻿using BTCPayServer.Data;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore;
-using BTCPayServer.Models;
-using Microsoft.EntityFrameworkCore.Infrastructure.Internal;
-using Newtonsoft.Json;
+#nullable enable
 using System.Threading;
+using System.Threading.Tasks;
+using BTCPayServer.Abstractions.Contracts;
+using BTCPayServer.Data;
+using BTCPayServer.Events;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Newtonsoft.Json;
 
 namespace BTCPayServer.Services
 {
-    public class SettingsRepository
+    public class SettingsRepository : ISettingsRepository
     {
-        private ApplicationDbContextFactory _ContextFactory;
-        public SettingsRepository(ApplicationDbContextFactory contextFactory)
+        private readonly ApplicationDbContextFactory _ContextFactory;
+        private readonly EventAggregator _EventAggregator;
+        private readonly IMemoryCache _memoryCache;
+
+        public SettingsRepository(ApplicationDbContextFactory contextFactory, EventAggregator eventAggregator, IMemoryCache memoryCache)
         {
             _ContextFactory = contextFactory;
+            _EventAggregator = eventAggregator;
+            _memoryCache = memoryCache;
         }
 
-        public async Task<T> GetSettingAsync<T>()
+        public async Task<T?> GetSettingAsync<T>(string? name = null) where T : class
         {
-            var name = typeof(T).FullName;
-            using (var ctx = _ContextFactory.CreateContext())
+            name ??= typeof(T).FullName ?? string.Empty;
+            return await _memoryCache.GetOrCreateAsync(GetCacheKey(name), async entry =>
             {
+                await using var ctx = _ContextFactory.CreateContext();
                 var data = await ctx.Settings.Where(s => s.Id == name).FirstOrDefaultAsync();
-                if (data == null)
-                    return default(T);
-                return Deserialize<T>(data.Value);
-            }
+                return data == null ? default : Deserialize<T>(data.Value);
+            });
         }
-
-        public async Task UpdateSetting<T>(T obj)
+        public async Task UpdateSetting<T>(T obj, string? name = null) where T : class
         {
-            var name = obj.GetType().FullName;
-            using (var ctx = _ContextFactory.CreateContext())
+            name ??= typeof(T).FullName ?? string.Empty;
+            await using (var ctx = _ContextFactory.CreateContext())
             {
-                var settings = new SettingData();
-                settings.Id = name;
-                settings.Value = Serialize(obj);
-                ctx.Attach(settings);
-                ctx.Entry(settings).State = EntityState.Modified;
+                var settings = UpdateSettingInContext<T>(ctx, obj, name);
                 try
                 {
                     await ctx.SaveChangesAsync();
@@ -52,25 +49,25 @@ namespace BTCPayServer.Services
                     await ctx.SaveChangesAsync();
                 }
             }
-
-            IReadOnlyCollection<TaskCompletionSource<bool>> value;
-            lock (_Subscriptions)
+            _memoryCache.Set(GetCacheKey(name), obj);
+            _EventAggregator.Publish(new SettingsChanged<T>()
             {
-                if(_Subscriptions.TryGetValue(typeof(T), out value))
-                {
-                    _Subscriptions.Remove(typeof(T));
-                }
-            }
-            if(value != null)
-            {
-                foreach(var v in value)
-                {
-                    v.TrySetResult(true);
-                }
-            }
+                Settings = obj,
+                SettingsName = name
+            });
         }
 
-        private T Deserialize<T>(string value)
+        public SettingData UpdateSettingInContext<T>(ApplicationDbContext ctx, T obj, string? name = null) where T : class
+        {
+            name ??= obj.GetType().FullName ?? string.Empty;
+            _memoryCache.Remove(GetCacheKey(name));
+            var settings = new SettingData { Id = name, Value = Serialize(obj) };
+            ctx.Attach(settings);
+            ctx.Entry(settings).State = EntityState.Modified;
+            return settings;
+        }
+
+        private T? Deserialize<T>(string value) where T : class
         {
             return JsonConvert.DeserializeObject<T>(value);
         }
@@ -80,34 +77,14 @@ namespace BTCPayServer.Services
             return JsonConvert.SerializeObject(obj);
         }
 
-        MultiValueDictionary<Type, TaskCompletionSource<bool>> _Subscriptions = new MultiValueDictionary<Type, TaskCompletionSource<bool>>();
-        public async Task WaitSettingsChanged<T>(CancellationToken cancellation)
+        private string GetCacheKey(string name)
         {
-            var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            using (cancellation.Register(() =>
-             {
-                 try
-                 {
-                     tcs.TrySetCanceled();
-                 }
-                 catch { }
-             }))
-            {
-                lock (_Subscriptions)
-                {
-                    _Subscriptions.Add(typeof(T), tcs);
-                }
-#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                tcs.Task.ContinueWith(_ =>
-                 {
-                     lock (_Subscriptions)
-                     {
-                         _Subscriptions.Remove(typeof(T), tcs);
-                     }
-                 }, TaskScheduler.Default);
-#pragma warning restore CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
-                await tcs.Task;
-            }
+            return $"{nameof(SettingsRepository)}_{name}";
+        }
+
+        public async Task<T> WaitSettingsChanged<T>(CancellationToken cancellationToken = default) where T : class
+        {
+            return (await _EventAggregator.WaitNext<SettingsChanged<T>>(cancellationToken)).Settings;
         }
     }
 }

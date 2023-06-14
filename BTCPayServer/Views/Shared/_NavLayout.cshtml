@@ -1,37 +1,32 @@
-﻿@{
+@using NBitcoin
+@{
     Layout = "/Views/Shared/_Layout.cshtml";
     ViewBag.ShowMenu = ViewBag.ShowMenu ?? true;
+    if (!ViewData.ContainsKey("NavPartialName"))
+    {
+        ViewData["NavPartialName"] = "_Nav";
+    }
 }
 
-<section>
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-12 text-center">
-                <h2 class="section-heading">@ViewData["MainTitle"]</h2>
-                <hr class="primary">
-            </div>
-        </div>
-
-        <div>
-            <div class="row">
-                <div class="col-md-3">
-                    @if (ViewBag.ShowMenu)
-                    {
-                        @await Html.PartialAsync("_Nav")
-                    }
-                </div>
-                <div class="col-md-9">
-                    @RenderBody()
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-@section HeadScripts {
-    @RenderSection("HeadScripts", required: false)
+@section PageHeadContent {
+    @await RenderSectionAsync("PageHeadContent", false)
 }
 
-@section Scripts {
-    @RenderSection("Scripts", required: false)
+@section PageFootContent {
+    @await RenderSectionAsync("PageFootContent", false)
 }
 
+@if (ViewBag.ShowMenu)
+{
+    <partial name="@ViewData["NavPartialName"].ToString()" />
+    <script>
+        (function () {
+            const activeEl = document.querySelector('#SectionNav .nav .active')
+            if (activeEl) activeEl.scrollIntoView({ block: 'end', inline: 'center' })
+        })()
+    </script>
+}
+
+<partial name="_StatusMessage" />
+
+@RenderBody()

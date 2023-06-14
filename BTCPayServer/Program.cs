@@ -1,90 +1,97 @@
-﻿using BTCPayServer.Configuration;
-using BTCPayServer.Logging;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Logging;
 using System;
-using BTCPayServer.Hosting;
-using NBitcoin;
-using Microsoft.Extensions.DependencyInjection;
-using System.Runtime.InteropServices;
 using System.Linq;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
-using System.Collections.Generic;
-using System.Collections;
+using System.Runtime.CompilerServices;
+using BTCPayServer.Configuration;
+using BTCPayServer.Hosting;
+using BTCPayServer.Logging;
+using BTCPayServer.Plugins;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
-using System.Threading;
-using Serilog;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Reflection;
 
+[assembly: InternalsVisibleTo("BTCPayServer.Tests")]
 namespace BTCPayServer
 {
     class Program
     {
-        private const long MAX_DEBUG_LOG_FILE_SIZE = 2000000; // If debug log is in use roll it every N MB.
-
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "run")
+                args = args.Skip(1).ToArray(); // Hack to make dotnet watch work
+
             ServicePointManager.DefaultConnectionLimit = 100;
             IWebHost host = null;
             var processor = new ConsoleLoggerProcessor();
             CustomConsoleLogProvider loggerProvider = new CustomConsoleLogProvider(processor);
-            var loggerFactory = new LoggerFactory();
+            using var loggerFactory = new LoggerFactory();
             loggerFactory.AddProvider(loggerProvider);
             var logger = loggerFactory.CreateLogger("Configuration");
+            Logs logs = new Logs();
+            logs.Configure(loggerFactory);
+            IConfiguration conf = null;
             try
             {
-                // This is the only way that LoadArgs can print to console. Because LoadArgs is called by the HostBuilder before Logs.Configure is called
-                var conf = new DefaultConfiguration() { Logger = logger }.CreateConfiguration(args);
+                conf = new DefaultConfiguration() { Logger = logger }.CreateConfiguration(args);
                 if (conf == null)
                     return;
-                Logs.Configure(loggerFactory);
-                new BTCPayServerOptions().LoadArgs(conf);
-                Logs.Configure(null);
-                /////
 
-                host = new WebHostBuilder()
+                var builder = new WebHostBuilder()
                     .UseKestrel()
-                    .UseIISIntegration()
-                    .UseContentRoot(Directory.GetCurrentDirectory())
                     .UseConfiguration(conf)
                     .ConfigureLogging(l =>
                     {
                         l.AddFilter("Microsoft", LogLevel.Error);
+                        if (!conf.GetOrDefault<bool>("verbose", false))
+                            l.AddFilter("Events", LogLevel.Warning);
+                        l.AddFilter("System.Net.Http.HttpClient", LogLevel.Critical);
                         l.AddFilter("Microsoft.AspNetCore.Antiforgery.Internal", LogLevel.Critical);
+                        l.AddFilter("Fido2NetLib.DistributedCacheMetadataService", LogLevel.Error);
                         l.AddProvider(new CustomConsoleLogProvider(processor));
-
-                        // Use Serilog for debug log file.
-                        var debugLogFile = BTCPayServerOptions.GetDebugLog(conf);
-                        if (string.IsNullOrEmpty(debugLogFile) != false) return;
-                        Serilog.Log.Logger = new LoggerConfiguration()
-                            .Enrich.FromLogContext()
-                            .MinimumLevel.Is(BTCPayServerOptions.GetDebugLogLevel(conf))
-                            .WriteTo.File(debugLogFile, rollingInterval: RollingInterval.Day, fileSizeLimitBytes: MAX_DEBUG_LOG_FILE_SIZE, rollOnFileSizeLimit: true, retainedFileCountLimit: 1)
-                            .CreateLogger();
-
-                        l.AddSerilog(Serilog.Log.Logger);
                     })
-                    .UseStartup<Startup>()
-                    .Build();
-                host.StartAsync().GetAwaiter().GetResult();
+                    .UseStartup<Startup>();
+
+                // When we run the app with dotnet run (typically in dev env), the wwwroot isn't in the same directory
+                // than this assembly.
+                // But when we use dotnet publish, the wwwroot is published alongside the assembly!
+                // This fix https://github.com/btcpayserver/btcpayserver/issues/1894
+                var defaultContentPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+                var defaultWebRoot = Path.Combine(defaultContentPath, "wwwroot");
+                var defaultWebRootExists = Directory.Exists(defaultWebRoot);
+                if (!defaultWebRootExists)
+                {
+                    // When we use dotnet run...
+                    builder.UseContentRoot(Directory.GetCurrentDirectory());
+                }
+                host = builder.Build();
+                host.StartWithTasksAsync().GetAwaiter().GetResult();
                 var urls = host.ServerFeatures.Get<IServerAddressesFeature>().Addresses;
                 foreach (var url in urls)
                 {
-                    logger.LogInformation("Listening on " + url);
+                    // Some tools such as dotnet watch parse this exact log to open the browser
+                    logger.LogInformation("Now listening on: " + url);
                 }
                 host.WaitForShutdown();
             }
             catch (ConfigException ex)
             {
                 if (!string.IsNullOrEmpty(ex.Message))
-                    Logs.Configuration.LogError(ex.Message);
+                    logs.Configuration.LogError(ex.Message);
+            }
+            catch (Exception e) when (PluginManager.IsExceptionByPlugin(e))
+            {
+                logs.Configuration.LogError(e, $"Disabling plugin {e.Source} as it crashed on startup");
+                var pluginDir = new DataDirectories().Configure(conf).PluginDir;
+                PluginManager.DisablePlugin(pluginDir, e.Source);
             }
             finally
             {
                 processor.Dispose();
-                if(host == null)
-                    Logs.Configuration.LogError("Configuration error");
+                if (host == null)
+                    logs.Configuration.LogError("Configuration error");
                 if (host != null)
                     host.Dispose();
                 Serilog.Log.CloseAndFlush();

@@ -1,0 +1,44 @@
+@using BTCPayServer.Payments
+@using BTCPayServer.Payments.Lightning
+@model IEnumerable<BTCPayServer.Services.Invoices.PaymentEntity>
+
+@{
+    var offchainPayments = Model.Where(entity => entity.GetPaymentMethodId()?.PaymentType == LightningPaymentType.Instance || entity.GetPaymentMethodId()?.PaymentType == LNURLPayPaymentType.Instance).Select(payment =>
+    {
+        var offChainPaymentData = payment.GetCryptoPaymentData() as LightningLikePaymentData;
+        if (offChainPaymentData is null)
+        {
+            return null;
+        }
+        return new OffChainPaymentViewModel()
+        {
+            Crypto = payment.Network.CryptoCode,
+            BOLT11 = offChainPaymentData.BOLT11,
+            Type = payment.GetCryptoPaymentData().GetPaymentType()
+        };
+    }).Where(model => model != null);
+}
+
+@if (offchainPayments.Any())
+{
+    <h5>Off-Chain Payments</h5>
+    <table class="table table-hover">
+        <thead class="thead-inverse">
+            <tr>
+                <th class="w-150px">Crypto</th>
+                <th class="w-150px">Type</th>
+                <th>BOLT11</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var payment in offchainPayments)
+            {
+                <tr>
+                    <td>@payment.Crypto</td>
+                    <td>@payment.Type.ToPrettyString()</td>
+                    <td class="text-break">@payment.BOLT11</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

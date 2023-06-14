@@ -1,8 +1,5 @@
-﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using NBitcoin;
+using Newtonsoft.Json.Linq;
 
 namespace BTCPayServer.Payments
 {
@@ -16,17 +13,15 @@ namespace BTCPayServer.Payments
         /// </summary>
         /// <returns></returns>
         string GetPaymentDestination();
-        PaymentTypes GetPaymentType();
+        PaymentType GetPaymentType();
         /// <summary>
-        /// Returns what a merchant would need to pay to cashout this payment
+        /// Returns fee that the merchant charge to the customer for the next payment
         /// </summary>
         /// <returns></returns>
-        decimal GetTxFee();
-        void SetNoTxFee();
-        /// <summary>
-        /// Change the payment destination (internal plumbing)
-        /// </summary>
-        /// <param name="newPaymentDestination"></param>
-        void SetPaymentDestination(string newPaymentDestination);
+        decimal GetNextNetworkFee();
+
+        bool Activated { get; set; }
+        virtual string GetAdditionalDataPartialName() => null;
+        virtual JObject GetAdditionalData() => new();
     }
 }

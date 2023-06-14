@@ -1,39 +1,32 @@
-﻿using Microsoft.AspNetCore.Hosting;
-using System.Linq;
 using System;
-using System.Collections.Generic;
-using System.Text;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Builder;
-using System.Threading.Tasks;
+using System.IO;
+using System.Linq;
 using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server.Features;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace BTCPayServer.Tests
 {
     public class CustomServer : IDisposable
     {
-        TaskCompletionSource<bool> _Evt = null;
-        IWebHost _Host = null;
-        CancellationTokenSource _Closed = new CancellationTokenSource();
+        readonly IWebHost _Host = null;
+        readonly CancellationTokenSource _Closed = new CancellationTokenSource();
+        readonly Channel<JObject> _Requests = Channel.CreateUnbounded<JObject>();
         public CustomServer()
         {
             var port = Utils.FreeTcpPort();
             _Host = new WebHostBuilder()
                 .Configure(app =>
                 {
-                    app.Run(req =>
+                    app.Run(async req =>
                     {
-                        while (_Act == null)
-                        {
-                            Thread.Sleep(10);
-                            _Closed.Token.ThrowIfCancellationRequested();
-                        }
-                        _Act(req);
-                        _Act = null;
-                        _Evt.TrySetResult(true);
+                        await _Requests.Writer.WriteAsync(JsonConvert.DeserializeObject<JObject>(await new StreamReader(req.Request.Body).ReadToEndAsync()), _Closed.Token);
                         req.Response.StatusCode = 200;
-                        return Task.CompletedTask;
                     });
                 })
                 .UseKestrel()
@@ -47,18 +40,18 @@ namespace BTCPayServer.Tests
             return new Uri(_Host.ServerFeatures.Get<IServerAddressesFeature>().Addresses.First());
         }
 
-        Action<HttpContext> _Act;
-        public void ProcessNextRequest(Action<HttpContext> act)
+        public async Task<JObject> GetNextRequest()
         {
-            var source = new TaskCompletionSource<bool>();
-            CancellationTokenSource cancellation = new CancellationTokenSource(20000);
-            cancellation.Token.Register(() => source.TrySetCanceled());
-            source = new TaskCompletionSource<bool>();
-            _Evt = source;
-            _Act = act;
+            using CancellationTokenSource cancellation = new CancellationTokenSource(2000000);
             try
             {
-                _Evt.Task.GetAwaiter().GetResult();
+                JObject req = null;
+                while (!await _Requests.Reader.WaitToReadAsync(cancellation.Token) ||
+                    !_Requests.Reader.TryRead(out req))
+                {
+
+                }
+                return req;
             }
             catch (TaskCanceledException)
             {

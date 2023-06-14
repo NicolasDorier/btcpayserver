@@ -1,6 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+using System;
+using BTCPayServer.Lightning;
 using BTCPayServer.Lightning.LND;
 using NBitcoin;
 
@@ -8,7 +7,7 @@ namespace BTCPayServer.Tests.Lnd
 {
     public class LndMockTester
     {
-        private ServerTester _Parent;
+        private readonly ServerTester _Parent;
 
         public LndMockTester(ServerTester serverTester, string environmentName, string defaultValue, string defaultHost, Network network)
         {
@@ -21,7 +20,7 @@ namespace BTCPayServer.Tests.Lnd
         }
 
         public LndSwaggerClient Swagger { get; set; }
-        public LndClient Client { get; set; }
+        public ILightningClient Client { get; set; }
         public string P2PHost { get; }
     }
 }

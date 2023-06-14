@@ -1,10 +1,24 @@
-﻿@model string
+@using BTCPayServer.Abstractions.Extensions
+@{
+    var parsedModel = TempData.GetStatusMessageModel();
+}
 
-@if(!String.IsNullOrEmpty(Model))
+@if (parsedModel != null)
 {
-    var statusMessageClass = Model.StartsWith("Error") ? "danger" : "success";
-    <div class="alert alert-@statusMessageClass alert-dismissible" role="alert">
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        @Model
+    <div class="alert alert-@parsedModel.SeverityCSS @(parsedModel.AllowDismiss? "alert-dismissible":"" ) @(ViewData["Margin"] ?? "mb-4") text-break" role="alert">
+        @if (parsedModel.AllowDismiss)
+        {
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close">
+                <vc:icon symbol="close" />
+            </button>
+        }
+        @if (!string.IsNullOrEmpty(parsedModel.Message))
+        {
+            <span style="white-space: pre-wrap;">@parsedModel.Message</span>
+        }
+        @if (!string.IsNullOrEmpty(parsedModel.Html))
+        {
+            @Safe.Raw(parsedModel.Html)
+        }
     </div>
 }

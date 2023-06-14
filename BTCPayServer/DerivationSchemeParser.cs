@@ -1,66 +1,143 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using NBitcoin;
-using NBitcoin.DataEncoders;
-using NBXplorer;
+using NBitcoin.Scripting;
 using NBXplorer.DerivationStrategy;
 
 namespace BTCPayServer
 {
     public class DerivationSchemeParser
     {
-        public Network Network { get; set; }
-        public Script HintScriptPubKey { get; set; }
+        public BTCPayNetwork BtcPayNetwork { get; }
 
-        public DerivationSchemeParser(Network expectedNetwork)
+        public Network Network => BtcPayNetwork.NBitcoinNetwork;
+
+        public DerivationSchemeParser(BTCPayNetwork expectedNetwork)
         {
-            Network = expectedNetwork;
+            ArgumentNullException.ThrowIfNull(expectedNetwork);
+            BtcPayNetwork = expectedNetwork;
         }
+
+        public (DerivationStrategyBase, RootedKeyPath[]) ParseOutputDescriptor(string str)
+        {
+            (DerivationStrategyBase, RootedKeyPath[]) ExtractFromPkProvider(PubKeyProvider pubKeyProvider,
+                string suffix = "")
+            {
+                switch (pubKeyProvider)
+                {
+                    case PubKeyProvider.Const _:
+                        throw new FormatException("Only HD output descriptors are supported.");
+                    case PubKeyProvider.HD hd:
+                        if (hd.Path != null && hd.Path.ToString() != "0")
+                        {
+                            throw new FormatException("Custom change paths are not supported.");
+                        }
+
+                        return (Parse($"{hd.Extkey}{suffix}"), null);
+                    case PubKeyProvider.Origin origin:
+                        var innerResult = ExtractFromPkProvider(origin.Inner, suffix);
+                        return (innerResult.Item1, new[] { origin.KeyOriginInfo });
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+
+            ArgumentNullException.ThrowIfNull(str);
+            str = str.Trim();
+            var outputDescriptor = OutputDescriptor.Parse(str, Network);
+            switch (outputDescriptor)
+            {
+                case OutputDescriptor.PK _:
+                case OutputDescriptor.Raw _:
+                case OutputDescriptor.Addr _:
+                    throw new FormatException("Only HD output descriptors are supported.");
+                case OutputDescriptor.Combo _:
+                    throw new FormatException("Only output descriptors of one format are supported.");
+                case OutputDescriptor.Multi multi:
+                    var xpubs = multi.PkProviders.Select(provider => ExtractFromPkProvider(provider));
+                    return (
+                        Parse(
+                            $"{multi.Threshold}-of-{(string.Join('-', xpubs.Select(tuple => tuple.Item1.ToString())))}{(multi.IsSorted ? "" : "-[keeporder]")}"),
+                        xpubs.SelectMany(tuple => tuple.Item2).ToArray());
+                case OutputDescriptor.PKH pkh:
+                    return ExtractFromPkProvider(pkh.PkProvider, "-[legacy]");
+                case OutputDescriptor.SH sh:
+                    var suffix = "-[p2sh]";
+                    if (sh.Inner is OutputDescriptor.Multi)
+                    {
+                        //non segwit
+                        suffix = "-[legacy]";
+                    }
+
+                    if (sh.Inner is OutputDescriptor.Multi || sh.Inner is OutputDescriptor.WPKH ||
+                        sh.Inner is OutputDescriptor.WSH)
+                    {
+                        var ds = ParseOutputDescriptor(sh.Inner.ToString());
+                        return (Parse(ds.Item1 + suffix), ds.Item2);
+                    };
+                    throw new FormatException("sh descriptors are only supported with multsig(legacy or p2wsh) and segwit(p2wpkh)");
+                case OutputDescriptor.WPKH wpkh:
+                    return ExtractFromPkProvider(wpkh.PkProvider, "");
+                case OutputDescriptor.WSH wsh:
+                    if (wsh.Inner is OutputDescriptor.Multi)
+                    {
+                        return ParseOutputDescriptor(wsh.Inner.ToString());
+                    }
+                    throw new FormatException("wsh descriptors are only supported with multisig");
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(outputDescriptor));
+            }
+        }
+
+        public DerivationStrategyBase ParseElectrum(string str)
+        {
+
+            ArgumentNullException.ThrowIfNull(str);
+            str = str.Trim();
+            var data = Network.GetBase58CheckEncoder().DecodeData(str);
+            if (data.Length < 4)
+                throw new FormatException();
+            var prefix = Utils.ToUInt32(data, false);
+
+            var standardPrefix = Utils.ToBytes(0x0488b21eU, false);
+            for (int ii = 0; ii < 4; ii++)
+                data[ii] = standardPrefix[ii];
+            var extPubKey = GetBitcoinExtPubKeyByNetwork(Network, data);
+            if (!BtcPayNetwork.ElectrumMapping.TryGetValue(prefix, out var type))
+            {
+                throw new FormatException();
+            }
+            if (type == DerivationType.Segwit)
+                return new DirectDerivationStrategy(extPubKey, true);
+            if (type == DerivationType.Legacy)
+                return new DirectDerivationStrategy(extPubKey, false);
+            if (type == DerivationType.SegwitP2SH)
+                return BtcPayNetwork.NBXplorerNetwork.DerivationStrategyFactory.Parse(extPubKey.ToString() + "-[p2sh]");
+            throw new FormatException();
+        }
+
 
         public DerivationStrategyBase Parse(string str)
         {
-            if (str == null)
-                throw new ArgumentNullException(nameof(str));
+            ArgumentNullException.ThrowIfNull(str);
             str = str.Trim();
 
             HashSet<string> hintedLabels = new HashSet<string>();
 
-            var hintDestination = HintScriptPubKey?.GetDestination();
-            if (hintDestination != null)
+            if (!Network.Consensus.SupportSegwit)
             {
-                if (hintDestination is KeyId)
-                {
-                    hintedLabels.Add("legacy");
-                }
-                if (hintDestination is ScriptId)
-                {
-                    hintedLabels.Add("p2sh");
-                }
-            }
-
-            if(!Network.Consensus.SupportSegwit)
                 hintedLabels.Add("legacy");
+                str = str.Replace("-[p2sh]", string.Empty, StringComparison.OrdinalIgnoreCase);
+            }
 
             try
             {
-                var result = new DerivationStrategyFactory(Network).Parse(str);
-                return FindMatch(hintedLabels, result);
+                return BtcPayNetwork.NBXplorerNetwork.DerivationStrategyFactory.Parse(str);
             }
             catch
             {
             }
-
-            Dictionary<uint, string[]> electrumMapping = new Dictionary<uint, string[]>();
-            //Source https://github.com/spesmilo/electrum/blob/9edffd17542de5773e7284a8c8a2673c766bb3c3/lib/bitcoin.py
-            var standard = 0x0488b21eU;
-            electrumMapping.Add(standard, new[] { "legacy" });
-            var p2wpkh_p2sh = 0x049d7cb2U;
-            electrumMapping.Add(p2wpkh_p2sh, new string[] { "p2sh" });
-            var p2wpkh = 0x4b24746U;
-            electrumMapping.Add(p2wpkh, Array.Empty<string>());
 
             var parts = str.Split('-');
             bool hasLabel = false;
@@ -84,31 +161,28 @@ namespace BTCPayServer
                     if (data.Length < 4)
                         continue;
                     var prefix = Utils.ToUInt32(data, false);
-                    var standardPrefix = Utils.ToBytes(Network.NetworkType == NetworkType.Mainnet ? 0x0488b21eU : 0x043587cf, false);
+
+                    var standardPrefix = Utils.ToBytes(0x0488b21eU, false);
                     for (int ii = 0; ii < 4; ii++)
                         data[ii] = standardPrefix[ii];
 
-                    var derivationScheme = new BitcoinExtPubKey(Network.GetBase58CheckEncoder().EncodeData(data), Network).ToString();
-                    electrumMapping.TryGetValue(prefix, out string[] labels);
-                    if (labels != null)
+                    var derivationScheme = GetBitcoinExtPubKeyByNetwork(Network, data).ToString();
+
+                    if (BtcPayNetwork.ElectrumMapping.TryGetValue(prefix, out var type))
                     {
-                        foreach (var label in labels)
+                        switch (type)
                         {
-                            hintedLabels.Add(label.ToLowerInvariant());
+                            case DerivationType.Legacy:
+                                hintedLabels.Add("legacy");
+                                break;
+                            case DerivationType.SegwitP2SH:
+                                hintedLabels.Add("p2sh");
+                                break;
                         }
                     }
                     parts[i] = derivationScheme;
                 }
                 catch { continue; }
-            }
-
-            if (hintDestination != null)
-            {
-                if (hintDestination is WitKeyId)
-                {
-                    hintedLabels.Remove("legacy");
-                    hintedLabels.Remove("p2sh");
-                }
             }
 
             str = string.Join('-', parts.Where(p => !IsLabel(p)));
@@ -117,31 +191,21 @@ namespace BTCPayServer
                 str = $"{str}-[{label}]";
             }
 
-            return FindMatch(hintedLabels, new DerivationStrategyFactory(Network).Parse(str));
+            return BtcPayNetwork.NBXplorerNetwork.DerivationStrategyFactory.Parse(str);
         }
 
-        private DerivationStrategyBase FindMatch(HashSet<string> hintLabels, DerivationStrategyBase result)
+        public static BitcoinExtPubKey GetBitcoinExtPubKeyByNetwork(Network network, byte[] data)
         {
-            var facto = new DerivationStrategyFactory(Network);
-            var firstKeyPath = new KeyPath("0/0");
-            if (HintScriptPubKey == null)
-                return result;
-            if (HintScriptPubKey == result.Derive(firstKeyPath).ScriptPubKey)
-                return result;
-
-            if (result is MultisigDerivationStrategy)
-                hintLabels.Add("keeporder");
-
-            var resultNoLabels = result.ToString();
-            resultNoLabels = string.Join('-', resultNoLabels.Split('-').Where(p => !IsLabel(p)));
-            foreach (var labels in ItemCombinations(hintLabels.ToList()))
+            try
             {
-                var hinted = facto.Parse(resultNoLabels + '-' + string.Join('-', labels.Select(l=>$"[{l}]").ToArray()));
-                if (HintScriptPubKey == hinted.Derive(firstKeyPath).ScriptPubKey)
-                    return hinted;
+                return new BitcoinExtPubKey(network.GetBase58CheckEncoder().EncodeData(data), network.NetworkSet.Mainnet).ToNetwork(network);
             }
-            throw new FormatException("Could not find any match");
+            catch (Exception)
+            {
+                return new BitcoinExtPubKey(network.GetBase58CheckEncoder().EncodeData(data), Network.Main).ToNetwork(network);
+            }
         }
+
 
         private static bool IsLabel(string v)
         {
@@ -149,20 +213,20 @@ namespace BTCPayServer
         }
 
         /// <summary>
-		/// Method to create lists containing possible combinations of an input list of items. This is 
-		/// basically copied from code by user "jaolho" on this thread:
-		/// http://stackoverflow.com/questions/7802822/all-possible-combinations-of-a-list-of-values
-		/// </summary>
-		/// <typeparam name="T">type of the items on the input list</typeparam>
-		/// <param name="inputList">list of items</param>
-		/// <param name="minimumItems">minimum number of items wanted in the generated combinations, 
-		///                            if zero the empty combination is included,
-		///                            default is one</param>
-		/// <param name="maximumItems">maximum number of items wanted in the generated combinations,
-		///                            default is no maximum limit</param>
-		/// <returns>list of lists for possible combinations of the input items</returns>
-		public static List<List<T>> ItemCombinations<T>(List<T> inputList, int minimumItems = 1,
-                                                        int maximumItems = int.MaxValue)
+        /// Method to create lists containing possible combinations of an input list of items. This is
+        /// basically copied from code by user "jaolho" on this thread:
+        /// http://stackoverflow.com/questions/7802822/all-possible-combinations-of-a-list-of-values
+        /// </summary>
+        /// <typeparam name="T">type of the items on the input list</typeparam>
+        /// <param name="inputList">list of items</param>
+        /// <param name="minimumItems">minimum number of items wanted in the generated combinations,
+        ///                            if zero the empty combination is included,
+        ///                            default is one</param>
+        /// <param name="maximumItems">maximum number of items wanted in the generated combinations,
+        ///                            default is no maximum limit</param>
+        /// <returns>list of lists for possible combinations of the input items</returns>
+        public static List<List<T>> ItemCombinations<T>(List<T> inputList, int minimumItems = 1,
+                                                int maximumItems = int.MaxValue)
         {
             int nonEmptyCombinations = (int)Math.Pow(2, inputList.Count) - 1;
             List<List<T>> listOfLists = new List<List<T>>(nonEmptyCombinations + 1);

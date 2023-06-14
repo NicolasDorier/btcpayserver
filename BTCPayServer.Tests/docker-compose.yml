@@ -1,114 +1,137 @@
-version: "3"    
+version: "3"
 
 # Run `docker-compose up dev` for bootstrapping your development environment
 # Doing so will expose NBXplorer, Bitcoind RPC and postgres port to the host so that tests can Run,
-# The Visual Studio launch setting `Docker-Regtest` is configured to use this environment.
+# The Visual Studio launch setting `Docker-regtest` is configured to use this environment.
 services:
 
   tests:
     build:
       context: ..
       dockerfile: BTCPayServer.Tests/Dockerfile
+      args:
+        CONFIGURATION_NAME: Release
     environment:
       TESTS_BTCRPCCONNECTION: server=http://bitcoind:43782;ceiwHEbqWI83:DwubwWsoo3
-      TESTS_LTCRPCCONNECTION: server=http://litecoind:43782;ceiwHEbqWI83:DwubwWsoo3
       TESTS_BTCNBXPLORERURL: http://nbxplorer:32838/
-      TESTS_LTCNBXPLORERURL: http://nbxplorer:32838/
       TESTS_DB: "Postgres"
-      TESTS_POSTGRES: User ID=postgres;Host=postgres;Port=5432;Database=btcpayserver
-      TESTS_MYSQL: User ID=root;Host=mysql;Port=3306;Database=btcpayserver
-      TESTS_PORT: 80
+      TESTS_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=btcpayserver
+      TESTS_EXPLORER_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=nbxplorer
       TESTS_HOSTNAME: tests
-      TEST_MERCHANTLIGHTNINGD: "type=clightning;server=/etc/merchant_lightningd_datadir/lightning-rpc"
-      TEST_CUSTOMERLIGHTNINGD: "type=clightning;server=/etc/customer_lightningd_datadir/lightning-rpc"
-      TEST_MERCHANTCHARGE: "type=charge;server=https://lightning-charged:9112/;api-token=foiewnccewuify;allowinsecure=true"
-      TEST_MERCHANTLND: "type=lnd-rest;server=https://lnd:lnd@127.0.0.1:53280/;allowinsecure=true"
+      TESTS_RUN_EXTERNAL_INTEGRATION: ${TESTS_RUN_EXTERNAL_INTEGRATION:-"false"}
+      TESTS_AzureBlobStorageConnectionString: ${TESTS_AzureBlobStorageConnectionString:-none}
+      TEST_MERCHANTLIGHTNINGD: "type=clightning;server=unix://etc/merchant_lightningd_datadir/lightning-rpc"
+      TEST_CUSTOMERLIGHTNINGD: "type=clightning;server=unix://etc/customer_lightningd_datadir/lightning-rpc"
+      TEST_MERCHANTCHARGE: "type=charge;server=http://lightning-charged:9112/;api-token=foiewnccewuify;allowinsecure=true"
+      TEST_MERCHANTLND: "http://lnd:lnd@merchant_lnd:8080/"
       TESTS_INCONTAINER: "true"
+      TESTS_SSHCONNECTION: "root@sshd:22"
+      TESTS_SSHPASSWORD: ""
+      TESTS_SSHKEYFILE: ""
+      TESTS_SOCKSENDPOINT: "tor:9050"
     expose:
       - "80"
-    links:
+    depends_on:
       - dev
-    extra_hosts: 
+      - selenium
+    extra_hosts:
       - "tests:127.0.0.1"
     volumes:
+      - "sshd_datadir:/root/.ssh"
       - "customer_lightningd_datadir:/etc/customer_lightningd_datadir"
       - "merchant_lightningd_datadir:/etc/merchant_lightningd_datadir"
 
   # The dev container is not actually used, it is just handy to run `docker-compose up dev` to start all services
-  dev: 
-    image: nicolasdorier/docker-bitcoin:0.17.0
-    environment:
-      BITCOIN_NETWORK: regtest
-      BITCOIN_EXTRA_ARGS: |
-        deprecatedrpc=signrawtransaction
-        connect=bitcoind:39388
-    links:
+  dev:
+    image: alpine:3.7
+    command: [ "/bin/sh", "-c", "trap : TERM INT; while :; do echo Ready to code and debug like a rockstar!!!; sleep 2073600; done & wait" ]
+    depends_on:
       - nbxplorer
       - postgres
-      - mysql
       - customer_lightningd
       - merchant_lightningd
       - lightning-charged
       - customer_lnd
       - merchant_lnd
+      - sshd
+      - tor
 
-  devlnd: 
-    image: nicolasdorier/docker-bitcoin:0.17.0
+  sshd:
+    build:
+        context: .
+        dockerfile: sshd.Dockerfile
+    ports:
+        - "21622:22"
+    expose:
+        - 22
+    volumes:
+        - "sshd_datadir:/root/.ssh"
+
+  devlnd:
+    image: btcpayserver/bitcoin:24.0
     environment:
       BITCOIN_NETWORK: regtest
+      BITCOIN_WALLETDIR: "/data/wallets"
       BITCOIN_EXTRA_ARGS: |
         deprecatedrpc=signrawtransaction
         connect=bitcoind:39388
-    links:
+        rpcallowip=0.0.0.0/0
+        fallbackfee=0.0002
+    depends_on:
       - nbxplorer
       - postgres
-      - mysql
       - customer_lnd
       - merchant_lnd
-
-
-
+  selenium:
+    image: selenium/standalone-chrome:101.0
+    expose:
+      - "4444"
   nbxplorer:
-    image: nicolasdorier/nbxplorer:1.1.0.18
+    image: nicolasdorier/nbxplorer:2.3.40
     restart: unless-stopped
     ports:
       - "32838:32838"
-    expose: 
+    expose:
       - "32838"
     environment:
       NBXPLORER_NETWORK: regtest
-      NBXPLORER_CHAINS: "btc,ltc"
+      NBXPLORER_CHAINS: "btc"
       NBXPLORER_BTCRPCURL: http://bitcoind:43782/
       NBXPLORER_BTCNODEENDPOINT: bitcoind:39388
       NBXPLORER_BTCRPCUSER: ceiwHEbqWI83
       NBXPLORER_BTCRPCPASSWORD: DwubwWsoo3
-      NBXPLORER_LTCRPCURL: http://litecoind:43782/
-      NBXPLORER_LTCNODEENDPOINT: litecoind:39388
-      NBXPLORER_LTCRPCUSER: ceiwHEbqWI83
-      NBXPLORER_LTCRPCPASSWORD: DwubwWsoo3
       NBXPLORER_BIND: 0.0.0.0:32838
+      NBXPLORER_MINGAPSIZE: 5
+      NBXPLORER_MAXGAPSIZE: 10
       NBXPLORER_VERBOSE: 1
+      NBXPLORER_POSTGRES: User ID=postgres;Include Error Detail=true;Host=postgres;Port=5432;Database=nbxplorer
+      NBXPLORER_EXPOSERPC: 1
       NBXPLORER_NOAUTH: 1
-    links:
+    depends_on:
       - bitcoind
-      - litecoind
+
 
   bitcoind:
-    image: nicolasdorier/docker-bitcoin:0.17.0
+    restart: unless-stopped
+    image: btcpayserver/bitcoin:24.0
     environment:
       BITCOIN_NETWORK: regtest
-      BITCOIN_EXTRA_ARGS: |
-        deprecatedrpc=signrawtransaction
+      BITCOIN_WALLETDIR: "/data/wallets"
+      BITCOIN_EXTRA_ARGS: |-
         rpcuser=ceiwHEbqWI83
         rpcpassword=DwubwWsoo3
         rpcport=43782
+        rpcbind=0.0.0.0:43782
+        rpcallowip=0.0.0.0/0
         port=39388
         whitelist=0.0.0.0/0
         zmqpubrawblock=tcp://0.0.0.0:28332
         zmqpubrawtx=tcp://0.0.0.0:28333
-    ports: 
+        deprecatedrpc=signrawtransaction
+        fallbackfee=0.0002
+    ports:
       - "43782:43782"
-      - "28332:28332"
+      - "39388:39388"
     expose:
       - "43782" # RPC
       - "39388" # P2P
@@ -118,19 +141,20 @@ services:
       - "bitcoin_datadir:/data"
 
   customer_lightningd:
-    image: nicolasdorier/clightning:v0.6.2-3-dev
+    image: btcpayserver/lightning:v0.10.1-1-dev
     stop_signal: SIGKILL
     restart: unless-stopped
-    environment: 
+    environment:
       EXPOSE_TCP: "true"
+      LIGHTNINGD_CHAIN: "btc"
+      LIGHTNINGD_NETWORK: "regtest"
       LIGHTNINGD_OPT: |
         bitcoin-datadir=/etc/bitcoin
         bitcoin-rpcconnect=bitcoind
-        network=regtest
-        bind-addr=0.0.0.0
         announce-addr=customer_lightningd
         log-level=debug
-        dev-broadcast-interval=1000
+        funding-confirms=1
+        dev-fast-gossip
         dev-bitcoind-poll=1
     ports:
       - "30992:9835" # api port
@@ -140,16 +164,18 @@ services:
     volumes:
       - "bitcoin_datadir:/etc/bitcoin"
       - "customer_lightningd_datadir:/root/.lightning"
-    links:
+    depends_on:
       - bitcoind
 
   lightning-charged:
-    image: shesek/lightning-charge:0.4.3
+    image: shesek/lightning-charge:0.4.23-1-standalone
     restart: unless-stopped
     environment:
       NETWORK: regtest
       API_TOKEN: foiewnccewuify
       BITCOIND_RPCCONNECT: bitcoind
+      LN_NET_PATH: /etc/lightning
+      LN_NET: /etc/lightning
     volumes:
       - "bitcoin_datadir:/etc/bitcoin"
       - "lightning_charge_datadir:/data"
@@ -159,23 +185,25 @@ services:
       - "9735" # Lightning
     ports:
       - "54938:9112" # Charge
-    links:
+    depends_on:
       - bitcoind
       - merchant_lightningd
 
   merchant_lightningd:
-    image: nicolasdorier/clightning:v0.6.2-3-dev
+    image: btcpayserver/lightning:v0.10.1-1-dev
     stop_signal: SIGKILL
-    environment: 
+    environment:
       EXPOSE_TCP: "true"
+      LIGHTNINGD_CHAIN: "btc"
+      LIGHTNINGD_NETWORK: "regtest"
       LIGHTNINGD_OPT: |
         bitcoin-datadir=/etc/bitcoin
         bitcoin-rpcconnect=bitcoind
-        bind-addr=0.0.0.0
         announce-addr=merchant_lightningd
-        network=regtest
+        funding-confirms=1
         log-level=debug
-        dev-broadcast-interval=1000
+        dev-fast-gossip
+        dev-bitcoind-poll=1
     ports:
       - "30993:9835" # api port
     expose:
@@ -184,101 +212,114 @@ services:
     volumes:
       - "bitcoin_datadir:/etc/bitcoin"
       - "merchant_lightningd_datadir:/root/.lightning"
-    links:
+    depends_on:
       - bitcoind
 
-  litecoind:
-    image: nicolasdorier/docker-litecoin:0.15.1
-    environment:
-      BITCOIN_EXTRA_ARGS: |
-        rpcuser=ceiwHEbqWI83
-        rpcpassword=DwubwWsoo3
-        regtest=1
-        server=1
-        rpcport=43782
-        port=39388
-        whitelist=0.0.0.0/0
-    ports: 
-      - "43783:43782"
-    expose:
-      - "43782" # RPC
-      - "39388" # P2P
-
   postgres:
-    image:  postgres:9.6.5
+    image:  postgres:13.4
+    environment:
+        POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "39372:5432"
     expose:
       - "5432"
-      
-  mysql:
-    image:  mysql:8.0.12
-    expose:
-      - "3306"
-    ports:
-      - "33036:3306"
-    environment:
-      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
 
   merchant_lnd:
-    image: btcpayserver/lnd:0.5-beta-2
+    image: btcpayserver/lnd:v0.15.4-beta-1
     restart: unless-stopped
     environment:
       LND_CHAIN: "btc"
       LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://nbxplorer:32838/"
+      LND_REST_LISTEN_HOST: http://merchant_lnd:8080
       LND_EXTRA_ARGS: |
-        restlisten=0.0.0.0:8080
+        restlisten=merchant_lnd:8080
+        rpclisten=127.0.0.1:10008
+        rpclisten=merchant_lnd:10009
         bitcoin.node=bitcoind
         bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=ceiwHEbqWI83
+        bitcoind.rpcpass=DwubwWsoo3
         bitcoind.zmqpubrawblock=tcp://bitcoind:28332
         bitcoind.zmqpubrawtx=tcp://bitcoind:28333
         externalip=merchant_lnd:9735
+        bitcoin.defaultchanconfs=1
         no-macaroons=1
         debuglevel=debug
-        noseedbackup=1
         trickledelay=1000
+        no-rest-tls=1
     ports:
-      - "53280:8080"
+      - "35531:8080"
+      - "53280:10009"
     expose:
+      - "8080"
       - "9735"
+      - "10009"
     volumes:
       - "merchant_lnd_datadir:/data"
       - "bitcoin_datadir:/deps/.bitcoin"
-    links:
+    depends_on:
       - bitcoind
 
   customer_lnd:
-    image: btcpayserver/lnd:0.5-beta-2
+    image: btcpayserver/lnd:v0.15.4-beta-1
     restart: unless-stopped
     environment:
       LND_CHAIN: "btc"
       LND_ENVIRONMENT: "regtest"
+      LND_EXPLORERURL: "http://nbxplorer:32838/"
+      LND_REST_LISTEN_HOST: http://customer_lnd:8080
       LND_EXTRA_ARGS: |
-        restlisten=0.0.0.0:8080
+        restlisten=customer_lnd:8080
+        rpclisten=127.0.0.1:10008
+        rpclisten=customer_lnd:10009
         bitcoin.node=bitcoind
         bitcoind.rpchost=bitcoind:43782
+        bitcoind.rpcuser=ceiwHEbqWI83
+        bitcoind.rpcpass=DwubwWsoo3
         bitcoind.zmqpubrawblock=tcp://bitcoind:28332
         bitcoind.zmqpubrawtx=tcp://bitcoind:28333
-        externalip=customer_lnd:10009
+        externalip=customer_lnd:9735
+        bitcoin.defaultchanconfs=1
         no-macaroons=1
         debuglevel=debug
-        noseedbackup=1
         trickledelay=1000
+        no-rest-tls=1
     ports:
-      - "53281:8080"
+      - "35532:8080"
     expose:
       - "8080"
+      - "9735"
       - "10009"
     volumes:
       - "customer_lnd_datadir:/root/.lnd"
       - "bitcoin_datadir:/deps/.bitcoin"
-    links:
+    depends_on:
       - bitcoind
 
+  tor:
+    restart: unless-stopped
+    image: btcpayserver/tor:0.4.6.5
+    container_name: tor
+    environment:
+        TOR_PASSWORD: btcpayserver
+    ports:
+        - "9050:9050" # SOCKS
+        - "9051:9051" # Tor Control
+    volumes:
+        - "tor_datadir:/home/tor/.tor"
+        - "torrcdir:/usr/local/etc/tor"
+        - "tor_servicesdir:/var/lib/tor/hidden_services"
+
 volumes:
+    sshd_datadir:
     bitcoin_datadir:
+    elementsd_liquid_datadir:
     customer_lightningd_datadir:
     merchant_lightningd_datadir:
     lightning_charge_datadir:
     customer_lnd_datadir:
     merchant_lnd_datadir:
+    tor_datadir:
+    torrcdir:
+    tor_servicesdir:

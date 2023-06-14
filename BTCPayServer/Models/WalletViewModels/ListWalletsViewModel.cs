@@ -1,7 +1,6 @@
-﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using BTCPayServer;
+using NBitcoin;
 
 namespace BTCPayServer.Models.WalletViewModels
 {
@@ -17,6 +16,7 @@ namespace BTCPayServer.Models.WalletViewModels
             public WalletId Id { get; set; }
         }
 
+        public Dictionary<BTCPayNetwork, IMoney> BalanceForCryptoCode { get; set; } = new Dictionary<BTCPayNetwork, IMoney>();
         public List<WalletViewModel> Wallets { get; set; } = new List<WalletViewModel>();
     }
 }

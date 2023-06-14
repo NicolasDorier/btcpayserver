@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace BTCPayServer.Models.AccountViewModels
 {
@@ -23,5 +19,8 @@ namespace BTCPayServer.Models.AccountViewModels
         [Display(Name = "Confirm password")]
         [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
         public string ConfirmPassword { get; set; }
+
+        [Display(Name = "Is administrator?")]
+        public bool IsAdmin { get; set; }
     }
 }

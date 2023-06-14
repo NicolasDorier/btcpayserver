@@ -1,94 +1,58 @@
-﻿$(function () {
-    var ledgerDetected = false;
-
-    var loc = window.location, new_uri;
+function getVaultUI() {
+    var websocketPath = $("#WebsocketPath").text();
+    var loc = window.location, ws_uri;
     if (loc.protocol === "https:") {
-        new_uri = "wss:";
+        ws_uri = "wss:";
     } else {
-        new_uri = "ws:";
+        ws_uri = "ws:";
     }
-    new_uri += "//" + loc.host;
-    new_uri += loc.pathname + "/ledger/ws";
+    ws_uri += "//" + loc.host;
+    ws_uri += websocketPath;
+    return new vaultui.VaultBridgeUI(ws_uri);
+}
 
-    var bridge = new ledgerwebsocket.LedgerWebSocketBridge(new_uri);
+function showModal() {
+    var html = $("#btcpayservervault_template").html();
+    $("#btcpayservervault").html(html);
+    html = $("#VaultConnection").html();
+    $("#vaultPlaceholder").html(html);
+    $('#btcpayservervault').modal();
+}
 
-    var cryptoSelector = $("#CryptoCurrency");
-    function GetSelectedCryptoCode() {
-        return cryptoSelector.val();
-    }
-
-    function WriteAlert(type, message) {
-        
-    }
-
-    function Write(prefix, type, message) {
-        if (type === "error") {
-            $("#no-ledger-info").css("display", "block");
-            $("#ledger-in   fo").css("display", "none");
-        }
-    }
-
-    $(".ledger-info-recommended").on("click", function (elem) {
-        elem.preventDefault();
-        var account = elem.currentTarget.getAttribute("data-ledgeraccount");
-        var cryptoCode = GetSelectedCryptoCode();
-        bridge.sendCommand("getxpub", "cryptoCode=" + cryptoCode + "&account=" + account)
-            .then(function (result) {
-                if (cryptoCode !== GetSelectedCryptoCode())
-                    return;
-                $("#DerivationScheme").val(result.extPubKey);
-                $("#DerivationSchemeFormat").val("BTCPay");
-            })
-            .catch(function (reason) { Write('check', 'error', reason); });
-        return false;
+async function showAddress(rootedKeyPath, address) {
+    $(".showaddress").addClass("disabled");
+    showModal();
+    $("#btcpayservervault #displayedAddress").text(address);
+    var vaultUI = getVaultUI();
+    $('#btcpayservervault').on('hidden.bs.modal', function () {
+        vaultUI.closeBridge();
+        $(".showaddress").removeClass("disabled");
     });
+    if (await vaultUI.askForDevice())
+        await vaultUI.askForDisplayAddress(rootedKeyPath);
+    $('#btcpayservervault').modal("hide");
+}
 
-    var updateInfo = function () {
-        if (!ledgerDetected)
-            return false;
-        var cryptoCode = GetSelectedCryptoCode();
-        bridge.sendCommand("getxpub", "cryptoCode=" + cryptoCode)
-            .catch(function (reason) { Write('check', 'error', reason); })
-            .then(function (result) {
-                if (!result)
-                    return;
-                if (cryptoCode !== GetSelectedCryptoCode())
-                    return;
-                if (result.error) {
-                    Write('check', 'error', result.error);
-                    return;
-                }
-                else {
-                    Write('check', 'success', 'This store is configured to use your ledger');
-                    $("#no-ledger-info").css("display", "none");
-                    $("#ledger-info").css("display", "block");
-                }
-            });
-    };
+$(document).ready(function () {
+    function displayXPubs(xpub) {
+        $("#DerivationScheme").val(xpub.strategy);
+        $("#RootFingerprint").val(xpub.fingerprint);
+        $("#AccountKey").val(xpub.accountKey);
+        $("#Source").val("Vault");
+        $("#DerivationSchemeFormat").val("BTCPay");
+        $("#KeyPath").val(xpub.keyPath);
+        $(".modal").modal('hide');
+        $(".hw-fields").show();
+    }
 
-    bridge.isSupported()
-        .then(function (supported) {
-            if (!supported) {
-                Write('hw', 'error', 'U2F or Websocket are not supported by this browser');
-            }
-            else {
-                bridge.sendCommand('test', null, 5)
-                    .catch(function (reason) {
-                        if (reason.name === "TransportError")
-                            reason = "Have you forgot to activate browser support in your ledger app?";
-                        Write('hw', 'error', reason);
-                    })
-                    .then(function (result) {
-                        if (!result)
-                            return;
-                        if (result.error) {
-                            Write('hw', 'error', result.error);
-                        } else {
-                            Write('hw', 'success', 'Ledger detected');
-                            ledgerDetected = true;
-                            updateInfo();
-                        }
-                    });
-            }
+    $(".check-for-vault").on("click", async function () {
+        var vaultUI = getVaultUI();
+        showModal();
+        $('#btcpayservervault').on('hidden.bs.modal', function () {
+            vaultUI.closeBridge();
         });
+        while (! await vaultUI.askForDevice() || ! await vaultUI.askForXPubs()) {
+        }
+        displayXPubs(vaultUI.xpub);
+    });
 });

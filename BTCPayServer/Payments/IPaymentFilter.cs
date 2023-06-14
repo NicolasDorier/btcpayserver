@@ -1,7 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace BTCPayServer.Payments
 {
@@ -12,6 +10,21 @@ namespace BTCPayServer.Payments
 
     public class PaymentFilter
     {
+        class OrPaymentFilter : IPaymentFilter
+        {
+            private readonly IPaymentFilter _a;
+            private readonly IPaymentFilter _b;
+
+            public OrPaymentFilter(IPaymentFilter a, IPaymentFilter b)
+            {
+                _a = a;
+                _b = b;
+            }
+            public bool Match(PaymentMethodId paymentMethodId)
+            {
+                return _a.Match(paymentMethodId) || _b.Match(paymentMethodId);
+            }
+        }
         class NeverPaymentFilter : IPaymentFilter
         {
 
@@ -54,20 +67,43 @@ namespace BTCPayServer.Payments
                 return paymentMethodId == _paymentMethodId;
             }
         }
+        class PredicateFilter : IPaymentFilter
+        {
+            private readonly Func<PaymentMethodId, bool> predicate;
+
+            public PredicateFilter(Func<PaymentMethodId, bool> predicate)
+            {
+                this.predicate = predicate;
+            }
+
+            public bool Match(PaymentMethodId paymentMethodId)
+            {
+                return this.predicate(paymentMethodId);
+            }
+        }
+        public static IPaymentFilter Where(Func<PaymentMethodId, bool> predicate)
+        {
+            ArgumentNullException.ThrowIfNull(predicate);
+            return new PredicateFilter(predicate);
+        }
+        public static IPaymentFilter Or(IPaymentFilter a, IPaymentFilter b)
+        {
+            ArgumentNullException.ThrowIfNull(a);
+            ArgumentNullException.ThrowIfNull(b);
+            return new OrPaymentFilter(a, b);
+        }
         public static IPaymentFilter Never()
         {
             return NeverPaymentFilter.Instance;
         }
         public static IPaymentFilter Any(IPaymentFilter[] filters)
         {
-            if (filters == null)
-                throw new ArgumentNullException(nameof(filters));
+            ArgumentNullException.ThrowIfNull(filters);
             return new CompositePaymentFilter(filters);
         }
         public static IPaymentFilter WhereIs(PaymentMethodId paymentMethodId)
         {
-            if (paymentMethodId == null)
-                throw new ArgumentNullException(nameof(paymentMethodId));
+            ArgumentNullException.ThrowIfNull(paymentMethodId);
             return new PaymentIdFilter(paymentMethodId);
         }
     }
