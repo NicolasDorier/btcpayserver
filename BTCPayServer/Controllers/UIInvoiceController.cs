@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using BTCPayServer.Abstractions.Contracts;
 using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Client.Models;
 using BTCPayServer.Data;
@@ -60,6 +61,7 @@ namespace BTCPayServer.Controllers
         private readonly LinkGenerator _linkGenerator;
         private readonly IAuthorizationService _authorizationService;
         private readonly AppService _appService;
+        private readonly IFileService _fileService;
 
         public WebhookSender WebhookNotificationManager { get; }
 
@@ -84,6 +86,7 @@ namespace BTCPayServer.Controllers
             InvoiceActivator invoiceActivator,
             LinkGenerator linkGenerator,
             AppService appService,
+            IFileService fileService,
             IAuthorizationService authorizationService)
         {
             _displayFormatter = displayFormatter;
@@ -105,6 +108,7 @@ namespace BTCPayServer.Controllers
             _invoiceActivator = invoiceActivator;
             _linkGenerator = linkGenerator;
             _authorizationService = authorizationService;
+            _fileService = fileService;
             _appService = appService;
         }
 

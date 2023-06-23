@@ -19,8 +19,6 @@ using BTCPayServer.Models;
 using BTCPayServer.Models.InvoicingModels;
 using BTCPayServer.Models.PaymentRequestViewModels;
 using BTCPayServer.Payments;
-using BTCPayServer.Payments.Bitcoin;
-using BTCPayServer.Payments.Lightning;
 using BTCPayServer.Rating;
 using BTCPayServer.Services;
 using BTCPayServer.Services.Apps;
@@ -877,7 +875,6 @@ namespace BTCPayServer.Controllers
                 CustomCSSLink = storeBlob.CustomCSS,
                 CustomLogoLink = storeBlob.CustomLogo,
                 LogoFileId = storeBlob.LogoFileId,
-                SoundFileId = storeBlob.SoundFileId,
                 CssFileId = storeBlob.CssFileId,
                 BrandColor = storeBlob.BrandColor,
                 CheckoutType = invoice.CheckoutType ?? storeBlob.CheckoutType,
@@ -961,6 +958,12 @@ namespace BTCPayServer.Controllers
             model.PaymentMethodId = paymentMethodId.ToString();
             model.PaymentType = paymentMethodId.PaymentType.ToString();
             model.OrderAmountFiat = OrderAmountFromInvoice(model.CryptoCode, invoice, DisplayFormatter.CurrencyFormat.Symbol);
+
+            if (!string.IsNullOrEmpty(storeBlob.SoundFileId))
+            {
+                model.PaymentSoundUrl = await _fileService.GetFileUrl(Request.GetAbsoluteRootUri(), storeBlob.SoundFileId);
+            }
+            
             var expiration = TimeSpan.FromSeconds(model.ExpirationSeconds);
             model.TimeLeft = expiration.PrettyPrint();
             return model;
