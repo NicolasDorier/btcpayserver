@@ -468,10 +468,11 @@ namespace BTCPayServer.Services.Invoices
         [Obsolete("Use GetPayments instead")]
         public List<PaymentEntity> Payments { get; set; }
 
-#pragma warning disable CS0618
         public List<PaymentEntity> GetPayments(bool accountedOnly)
         {
+#pragma warning disable CS0618
             return Payments?.Where(entity => entity.GetPaymentMethodId() != null && (!accountedOnly || entity.Accounted)).ToList() ?? new List<PaymentEntity>();
+#pragma warning restore CS0618
         }
         public List<PaymentEntity> GetPayments(string cryptoCode, bool accountedOnly)
         {
@@ -481,7 +482,6 @@ namespace BTCPayServer.Services.Invoices
         {
             return GetPayments(network.CryptoCode, accountedOnly);
         }
-#pragma warning restore CS0618
         // public bool Refundable { get; set; }
         public bool? RequiresRefundEmail { get; set; } = null;
         public string RefundMail { get; set; }

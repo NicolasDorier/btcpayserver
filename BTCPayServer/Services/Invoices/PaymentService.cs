@@ -50,9 +50,7 @@ namespace BTCPayServer.Services.Invoices
             PaymentEntity entity = new PaymentEntity
             {
                 Version = 1,
-#pragma warning disable CS0618
                 Currency = network.CryptoCode,
-#pragma warning restore CS0618
                 ReceivedTime = date.UtcDateTime,
                 Accounted = accounted,
                 NetworkFee = paymentMethodDetails.GetNextNetworkFee(),
