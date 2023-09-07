@@ -26,9 +26,18 @@ public class StoreReportResponse
         {
             Name = name;
             Type = type;
+            if (type == "string")
+            {
+                DefaultAggregateFunction = ("", (a, b) => (string)a + (string)b);
+            }
+            else if (type == "decimal")
+            {
+                DefaultAggregateFunction = (0m, (a, b) => (decimal)a + (decimal)b);
+            }
         }
         public string Name { get; set; }
         public string Type { get; set; }
+        public (object Seed, Func<object, object, object> Aggregate) DefaultAggregateFunction { get; set; }
     }
     public IList<Field> Fields { get; set; } = new List<Field>();
     public List<JArray> Data { get; set; }
