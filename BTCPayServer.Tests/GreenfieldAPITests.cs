@@ -3677,26 +3677,28 @@ namespace BTCPayServer.Tests
         {
             var mnemo = new Mnemonic("piano sustain tag nothing iron much work tonight siren police music property", Wordlist.English);
             var accountPath = new KeyPath("m/84'/0'/0'");
+            var rootedAccountPath = new RootedKeyPath(mnemo.DeriveExtKey().GetPublicKey().GetHDFingerPrint(), accountPath);
             var accountKey = mnemo.DeriveExtKey().Derive(accountPath);
             int numInputs = 900;
             List<Coin> coins = new List<Coin>();
             List<KeyPath> keyPaths = new List<KeyPath>();
-            var fund = Transaction.Create(Network.Main);
-            fund.Inputs.Add(new TxIn(new OutPoint(uint256.One, 0)));
+            List<Transaction> funds = new List<Transaction>();
 
 
             for (int i = 0; i < numInputs; i++)
             {
+                var fund = Transaction.Create(Network.Main);
+                fund.Inputs.Add(new TxIn(new OutPoint(uint256.One, i)));
+                funds.Add(fund);
                 var path = new KeyPath(0, (uint)i);
                 var key = accountKey.Derive(path);
                 var txout = new TxOut(Money.Coins(1.0m), key.GetPublicKey().GetScriptPubKey(ScriptPubKeyType.Segwit));
                 fund.Outputs.Add(txout);
                 keyPaths.Add(accountPath.Derive(path));
             }
-            var fundId = fund.GetHash();
             for (int i = 0; i < numInputs; i++)
             {
-                var coin = new Coin(new OutPoint(fundId, i), fund.Outputs[i]);
+                var coin = new Coin(funds[i], 0);
                 coins.Add(coin);
             }
 
@@ -3705,8 +3707,13 @@ namespace BTCPayServer.Tests
             builder.SendFees(Money.Coins(1.0m));
             builder.SendAll(new Key().PubKey.WitHash.ScriptPubKey);
             var psbt = builder.BuildPSBT(false);
-            psbt = psbt.AddTransactions(fund)
+            psbt = psbt.AddTransactions(funds.ToArray())
                 .AddKeyPath(mnemo.DeriveExtKey(), keyPaths.ToArray());
+            var data = psbt.ToBase64();
+            //File.WriteAllText("C:\\Users\\NicolasDorier\\AppData\\Local\\Temp\\8650917\\data.psbt", data);
+            psbt.SignAll(ScriptPubKeyType.Segwit, accountKey, rootedAccountPath);
+            psbt.Finalize();
+            var extract = psbt.ExtractTransaction();
         }
         
         [Fact(Timeout = 60 * 2 * 1000)]
