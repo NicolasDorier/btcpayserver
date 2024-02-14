@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
@@ -26,6 +27,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NBitcoin;
 using NBitcoin.DataEncoders;
+using NBitcoin.Protocol;
 using NBitpayClient;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -3668,6 +3670,43 @@ namespace BTCPayServer.Tests
             {
                 await adminClient.ApproveUser(newUser.UserId, false, CancellationToken.None);
             });
+        }
+
+        [Fact]
+        public void Temp()
+        {
+            var mnemo = new Mnemonic("piano sustain tag nothing iron much work tonight siren police music property", Wordlist.English);
+            var accountPath = new KeyPath("m/84'/0'/0'");
+            var accountKey = mnemo.DeriveExtKey().Derive(accountPath);
+            int numInputs = 900;
+            List<Coin> coins = new List<Coin>();
+            List<KeyPath> keyPaths = new List<KeyPath>();
+            var fund = Transaction.Create(Network.Main);
+            fund.Inputs.Add(new TxIn(new OutPoint(uint256.One, 0)));
+
+
+            for (int i = 0; i < numInputs; i++)
+            {
+                var path = new KeyPath(0, (uint)i);
+                var key = accountKey.Derive(path);
+                var txout = new TxOut(Money.Coins(1.0m), key.GetPublicKey().GetScriptPubKey(ScriptPubKeyType.Segwit));
+                fund.Outputs.Add(txout);
+                keyPaths.Add(accountPath.Derive(path));
+            }
+            var fundId = fund.GetHash();
+            for (int i = 0; i < numInputs; i++)
+            {
+                var coin = new Coin(new OutPoint(fundId, i), fund.Outputs[i]);
+                coins.Add(coin);
+            }
+
+            var builder = Network.Main.CreateTransactionBuilder();
+            builder.AddCoins(coins);
+            builder.SendFees(Money.Coins(1.0m));
+            builder.SendAll(new Key().PubKey.WitHash.ScriptPubKey);
+            var psbt = builder.BuildPSBT(false);
+            psbt = psbt.AddTransactions(fund)
+                .AddKeyPath(mnemo.DeriveExtKey(), keyPaths.ToArray());
         }
         
         [Fact(Timeout = 60 * 2 * 1000)]
