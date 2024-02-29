@@ -99,6 +99,8 @@
 			await ndef.scan({ signal: abortController.signal })
 			setState("WaitingForCard");
 			ndef.onreading = async ({ message }) => {
+				alert(message);
+				alert(message.records.length);
 				const record = message.records[0];
 				const textDecoder = new TextDecoder('utf-8');
 				const decoded = textDecoder.decode(record.data);
