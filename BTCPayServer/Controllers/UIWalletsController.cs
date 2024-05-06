@@ -34,6 +34,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using NBitcoin;
 using NBXplorer;
 using NBXplorer.Client;
@@ -69,6 +70,7 @@ namespace BTCPayServer.Controllers
         private readonly DelayedTransactionBroadcaster _broadcaster;
         private readonly PayjoinClient _payjoinClient;
         private readonly LabelService _labelService;
+        private readonly ILogger<UIWalletsController> _logger;
         private readonly TransactionLinkProviders _transactionLinkProviders;
         private readonly PullPaymentHostedService _pullPaymentHostedService;
         private readonly WalletHistogramService _walletHistogramService;
@@ -94,10 +96,12 @@ namespace BTCPayServer.Controllers
                                  IServiceProvider serviceProvider,
                                  PullPaymentHostedService pullPaymentHostedService,
                                  LabelService labelService,
+                                 ILogger<UIWalletsController> logger,
                                  TransactionLinkProviders transactionLinkProviders)
         {
             _currencyTable = currencyTable;
             _labelService = labelService;
+            _logger = logger;
             _transactionLinkProviders = transactionLinkProviders;
             Repository = repo;
             WalletRepository = walletRepository;
@@ -737,6 +741,7 @@ namespace BTCPayServer.Controllers
 
             foreach (var transactionOutput in vm.Outputs.Where(output => output.Labels?.Any() is true))
             {
+                _logger.LogInformation(transactionOutput.DestinationAddress + "->" + String.Join(",", transactionOutput.Labels));
                 var labels = transactionOutput.Labels.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
                 var walletObjectAddress = new WalletObjectId(walletId, WalletObjectData.Types.Address, transactionOutput.DestinationAddress.ToLowerInvariant());
                 var obj = await WalletRepository.GetWalletObject(walletObjectAddress);

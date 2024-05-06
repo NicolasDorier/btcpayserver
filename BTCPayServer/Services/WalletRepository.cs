@@ -9,6 +9,7 @@ using BTCPayServer.Data;
 using BTCPayServer.Services.Wallets;
 using Dapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NBitcoin;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -69,10 +70,12 @@ namespace BTCPayServer.Services
     public class WalletRepository
     {
         private readonly ApplicationDbContextFactory _ContextFactory;
+        private readonly ILogger<WalletRepository> _logger;
 
-        public WalletRepository(ApplicationDbContextFactory contextFactory)
+        public WalletRepository(ApplicationDbContextFactory contextFactory, ILogger<WalletRepository> logger)
         {
             _ContextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
+            _logger = logger;
         }
 #nullable enable
         public async Task<WalletObjectData?> GetWalletObject(WalletObjectId walletObjectId, bool includeNeighbours = true)
@@ -393,6 +396,8 @@ namespace BTCPayServer.Services
             }
             else
             {
+                foreach (var l in links)
+                    _logger.LogInformation($"Create link {l.AType}:{l.AId} -> {l.BType}:{l.BId}");
                 await connection.ExecuteAsync("INSERT INTO \"WalletObjectLinks\" VALUES (@WalletId, @AType, @AId, @BType, @BId, @Data::JSONB) ON CONFLICT DO NOTHING", links);
             }
         }
