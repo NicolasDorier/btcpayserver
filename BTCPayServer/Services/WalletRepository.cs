@@ -397,7 +397,7 @@ namespace BTCPayServer.Services
             else
             {
                 foreach (var l in links)
-                    _logger.LogInformation($"Create link {l.AType}:{l.AId} -> {l.BType}:{l.BId}");
+                    _logger.LogInformation($"Wallet {l.WalletId} Create link {l.AType}:{l.AId} -> {l.BType}:{l.BId}");
                 await connection.ExecuteAsync("INSERT INTO \"WalletObjectLinks\" VALUES (@WalletId, @AType, @AId, @BType, @BId, @Data::JSONB) ON CONFLICT DO NOTHING", links);
             }
         }
