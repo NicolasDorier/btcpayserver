@@ -743,7 +743,7 @@ namespace BTCPayServer.Controllers
             {
                 _logger.LogInformation(transactionOutput.DestinationAddress + "->" + String.Join(",", transactionOutput.Labels));
                 var labels = transactionOutput.Labels.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-                var walletObjectAddress = new WalletObjectId(walletId, WalletObjectData.Types.Address, transactionOutput.DestinationAddress.ToLowerInvariant());
+                var walletObjectAddress = new WalletObjectId(walletId, WalletObjectData.Types.Address, transactionOutput.DestinationAddress);
                 var obj = await WalletRepository.GetWalletObject(walletObjectAddress);
                 if (obj is null)
                 {
