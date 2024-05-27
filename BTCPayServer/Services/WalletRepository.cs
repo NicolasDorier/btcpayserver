@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Text;
 using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Extensions;
 using BTCPayServer.Data;
@@ -101,6 +102,7 @@ namespace BTCPayServer.Services
             // n being the number of children, m the number of parents.
             if (ctx.Database.IsNpgsql() && !queryObject.UseInefficientPath)
             {
+                StringBuilder log = new StringBuilder();
                 var connection = ctx.Database.GetDbConnection();
                 if (connection.State != System.Data.ConnectionState.Open)
                     await connection.OpenAsync();
@@ -127,8 +129,10 @@ namespace BTCPayServer.Services
                     "SELECT \"BType\" AS \"Type2\", \"BId\" AS \"Id2\", \"Data\" AS \"LinkData\" FROM \"WalletObjectLinks\" WHERE \"WalletId\"=wos.\"WalletId\" AND \"AType\"=wos.\"Type\" AND \"AId\"=wos.\"Id\"" +
                     $" ) wol ON true " + includeNeighbourJoin;
                 cmd.CommandText = query;
+                log.AppendLine("QUERY: " + query);
                 if (queryObject.WalletId is not null)
                 {
+                    log.AppendLine("WalletId: " + queryObject.WalletId.ToString());
                     var walletIdParam = cmd.CreateParameter();
                     walletIdParam.ParameterName = "walletId";
                     walletIdParam.Value = queryObject.WalletId.ToString();
@@ -138,6 +142,7 @@ namespace BTCPayServer.Services
 
                 if (queryObject.Type != null)
                 {
+                    log.AppendLine("Type: " + queryObject.Type);
                     var typeParam = cmd.CreateParameter();
                     typeParam.ParameterName = "type";
                     typeParam.Value = queryObject.Type;
@@ -147,6 +152,11 @@ namespace BTCPayServer.Services
 
                 if (queryObject.TypesIds != null)
                 {
+                    log.AppendLine("TypesIds: ");
+                    foreach (var kv in queryObject.TypesIds)
+                    {
+                        log.AppendLine($"  {kv.Type}:{kv.Id}");
+                    }
                     var typesParam = cmd.CreateParameter();
                     typesParam.ParameterName = "types";
                     typesParam.Value = queryObject.TypesIds.Select(t => t.Type).ToList();
@@ -163,6 +173,7 @@ namespace BTCPayServer.Services
                 {
                     if (queryObject.Ids.Length == 1)
                     {
+                        log.AppendLine("Id: ");
                         var txIdParam = cmd.CreateParameter();
                         txIdParam.ParameterName = "id";
                         txIdParam.Value = queryObject.Ids[0];
@@ -174,6 +185,7 @@ namespace BTCPayServer.Services
                         var txIdsParam = cmd.CreateParameter();
                         txIdsParam.ParameterName = "ids";
                         txIdsParam.Value = queryObject.Ids.ToList();
+                        log.AppendLine("Ids: " + String.Join(',', queryObject.Ids.ToArray()));
                         txIdsParam.DbType = System.Data.DbType.Object;
                         cmd.Parameters.Add(txIdsParam);
                     }
@@ -182,27 +194,38 @@ namespace BTCPayServer.Services
                 var wosById = new Dictionary<WalletObjectId, WalletObjectData>();
                 while (await reader.ReadAsync())
                 {
+                    log.AppendLine();
+                    log.AppendLine("----");
                     WalletObjectData wo = new WalletObjectData();
                     wo.WalletId = (string)reader["WalletId"];
                     wo.Type = (string)reader["Type"];
                     wo.Id = (string)reader["Id"];
                     var id = new WalletObjectId(WalletId.Parse(wo.WalletId), wo.Type, wo.Id);
                     wo.Data = reader["Data"] is DBNull ? null : (string)reader["Data"];
+                    log.Append($"{wo.WalletId},{wo.Type},{wo.Id},{wo.Data}");
+
+
                     if (wosById.TryGetValue(id, out var wo2))
+                    {
+                        log.Append($"(OLD)");
                         wo = wo2;
+                    }
                     else
                     {
+                        log.Append($"(NEW)");
                         wosById.Add(id, wo);
                         wo.Bs = new List<WalletObjectLinkData>();
                     }
                     if (reader["Type2"] is not DBNull)
                     {
+                        log.Append($"(Type2)");
                         var l = new WalletObjectLinkData()
                         {
                             BType = (string)reader["Type2"],
                             BId = (string)reader["Id2"],
                             Data = reader["LinkData"] is DBNull ? null : (string)reader["LinkData"]
                         };
+                        log.Append($"(LinkData:{l.Data})");
                         wo.Bs.Add(l);
                         l.B = new WalletObjectData()
                         {
@@ -212,6 +235,7 @@ namespace BTCPayServer.Services
                         };
                     }
                 }
+                this._logger.LogInformation(log.ToString());
                 return wosById;
             }
             else // Unefficient path
