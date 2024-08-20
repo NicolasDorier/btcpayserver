@@ -30,9 +30,18 @@ namespace BTCPayServer.HostedServices
             public string Error { get; set; }
         }
 
+        public NBXplorerDashboard(Logs logs)
+        {
+            Logs = logs;
+        }
+
         readonly ConcurrentDictionary<string, NBXplorerSummary> _Summaries = new ConcurrentDictionary<string, NBXplorerSummary>();
+
+        public Logs Logs { get; }
+
         public void Publish(BTCPayNetworkBase network, NBXplorerState state, StatusResult status, string error)
         {
+            Logs.PayServer.LogInformation($"PUBLISH: Network = {network}, State = {state}, Status = {status}, Error = {error}");
             var summary = new NBXplorerSummary() { Network = network, State = state, Status = status, Error = error };
             _Summaries.AddOrUpdate(network.CryptoCode.ToUpperInvariant(), summary, (k, v) => summary);
         }
@@ -89,6 +98,7 @@ namespace BTCPayServer.HostedServices
             _Client = client;
             _Aggregator = aggregator;
             _Dashboard = dashboard;
+            Logs.PayServer.LogInformation("NBXplorerWaiter ctor");
             _Dashboard.Publish(_Network, State, null, null);
         }
 
@@ -204,6 +214,7 @@ namespace BTCPayServer.HostedServices
                 Logs.PayServer.LogError($"{_Network.CryptoCode}: NBXplorer error `{error}`");
             }
 
+            Logs.PayServer.LogInformation("NBXplorerWaiter");
             _Dashboard.Publish(_Network, State, status, error);
             if (oldState != State)
             {
