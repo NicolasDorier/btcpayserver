@@ -74,7 +74,9 @@ public class InvoiceBlobMigratorHostedService : BlobMigratorHostedService<Invoic
             }
         }
         if (invoices.Count == 1)
-            Logs.LogInformation("XMIN: " + invoices[0].XMin);
+        {
+            Logs.LogInformation("Payments: " + invoices[0].Payments.Count);
+        }
         return invoices[^1].Created;
     }
 
