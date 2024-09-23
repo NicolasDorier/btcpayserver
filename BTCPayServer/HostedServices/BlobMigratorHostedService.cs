@@ -72,10 +72,14 @@ retry:
                 await using (var ctx = ApplicationDbContextFactory.CreateContext(o => o.CommandTimeout((int)TimeSpan.FromDays(1.0).TotalSeconds)))
                 {
                     var query = GetQuery(ctx, settings?.Progress).Take(batchSize);
+                    Logs.LogInformation("QUERYING...");
                     entities = await query.ToListAsync(cancellationToken);
+                    Logs.LogInformation("QUERIED");
                     if (entities.Count == 0)
                     {
+                        Logs.LogInformation("COUNTING...");
                         var count = await GetQuery(ctx, null).CountAsync(cancellationToken);
+                        Logs.LogInformation("COUNT");
                         if (count != 0)
                         {
                             settings = new Settings() { Progress = null };
@@ -92,7 +96,9 @@ retry:
                     try
                     {
                         progress = ProcessEntities(ctx, entities);
+                        Logs.LogInformation("SAVING...");
                         await ctx.SaveChangesAsync();
+                        Logs.LogInformation("SAVEC");
                         batchSize = BatchSize;
                     }
                     catch (Exception ex) when (ex is DbUpdateConcurrencyException or TimeoutException or OperationCanceledException)
