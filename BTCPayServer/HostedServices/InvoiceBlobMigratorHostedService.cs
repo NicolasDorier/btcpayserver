@@ -73,6 +73,8 @@ public class InvoiceBlobMigratorHostedService : BlobMigratorHostedService<Invoic
                 pay.SetBlob(paymentEntity);
             }
         }
+        if (invoices.Count == 1)
+            Logs.LogInformation("XMIN: " + invoices[0].XMin);
         return invoices[^1].Created;
     }
 
