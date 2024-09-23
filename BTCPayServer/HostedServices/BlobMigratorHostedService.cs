@@ -103,6 +103,7 @@ retry:
                     }
                     catch (Exception ex) when (ex is DbUpdateConcurrencyException or TimeoutException or OperationCanceledException)
                     {
+                        Logs.LogError(ex, "ERR");
                         batchSize /= 2;
                         batchSize = Math.Max(1, batchSize);
                         goto retry;
