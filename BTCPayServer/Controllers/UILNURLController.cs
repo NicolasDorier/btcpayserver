@@ -179,7 +179,7 @@ namespace BTCPayServer
                             lightningHandler.CreateLightningClient(pm);
                         var payResult = await UILightningLikePayoutController.TrypayBolt(client,
                             claimResponse.PayoutData.GetBlob(_btcPayNetworkJsonSerializerSettings),
-                            claimResponse.PayoutData, result, cancellationToken);
+                            claimResponse.PayoutData, result, cancellationToken, null);
 
                         switch (payResult.Result)
                         {

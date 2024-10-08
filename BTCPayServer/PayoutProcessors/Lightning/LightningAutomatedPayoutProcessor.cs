@@ -141,6 +141,6 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
     {
         return (await UILightningLikePayoutController.TrypayBolt(lightningClient, payoutBlob, payoutData,
             bolt11PaymentRequest,
-			CancellationToken)).Result is  PayResult.Ok ;
+			CancellationToken, this.Logs.PayServer)).Result is  PayResult.Ok ;
     }
 }

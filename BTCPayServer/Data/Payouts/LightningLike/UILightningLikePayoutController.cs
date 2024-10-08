@@ -21,7 +21,9 @@ using LNURL;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NBitcoin;
 
@@ -185,13 +187,13 @@ namespace BTCPayServer.Data.Payouts.LightningLike
                                 }
                                 else
                                 {
-                                    result = await TrypayBolt(client, blob, payoutData, lnurlResult.Item1, cancellationToken);
+                                    result = await TrypayBolt(client, blob, payoutData, lnurlResult.Item1, cancellationToken, null);
                                 }
 
                                 break;
 
                             case BoltInvoiceClaimDestination item1:
-                                result = await TrypayBolt(client, blob, payoutData, item1.PaymentRequest, cancellationToken);
+                                result = await TrypayBolt(client, blob, payoutData, item1.PaymentRequest, cancellationToken, null);
 
                                 break;
                             default:
@@ -278,7 +280,7 @@ namespace BTCPayServer.Data.Payouts.LightningLike
         }
 
         public static async Task<ResultVM> TrypayBolt(
-            ILightningClient lightningClient, PayoutBlob payoutBlob, PayoutData payoutData, BOLT11PaymentRequest bolt11PaymentRequest, CancellationToken cancellationToken)
+            ILightningClient lightningClient, PayoutBlob payoutBlob, PayoutData payoutData, BOLT11PaymentRequest bolt11PaymentRequest, CancellationToken cancellationToken, ILogger logger)
         {
             var boltAmount = bolt11PaymentRequest.MinimumAmount.ToDecimal(LightMoneyUnit.BTC);
             if (boltAmount > payoutData.Amount)
@@ -308,12 +310,20 @@ namespace BTCPayServer.Data.Payouts.LightningLike
             var proofBlob = new PayoutLightningBlob { PaymentHash = bolt11PaymentRequest.PaymentHash.ToString() };
             try
             {
+                if (lightningClient.GetType().Name.Contains("blink", StringComparison.OrdinalIgnoreCase) && logger is not null)
+                {
+                    logger.LogInformation("Paying " + bolt11PaymentRequest.ToString());
+                }
                 var result = await lightningClient.Pay(bolt11PaymentRequest.ToString(),
                     new PayInvoiceParams()
                     {
                         // CLN does not support explicit amount param if it is the same as the invoice amount
                         Amount = payoutData.Amount == bolt11PaymentRequest.MinimumAmount.ToDecimal(LightMoneyUnit.BTC)? null: new LightMoney((decimal)payoutData.Amount, LightMoneyUnit.BTC)
                     }, cancellationToken);
+                if (lightningClient.GetType().Name.Contains("blink", StringComparison.OrdinalIgnoreCase) && logger is not null)
+                {
+                    logger.LogInformation("Paid " + result?.Result);
+                }
                 if (result == null) throw new NoPaymentResultException();
                 
                 string message = null;
