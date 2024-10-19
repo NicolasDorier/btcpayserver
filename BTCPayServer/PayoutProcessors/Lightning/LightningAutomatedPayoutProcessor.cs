@@ -116,7 +116,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
                 };
                 break;
         }
-
+        Logs.PayServer.LogInformation($"TRYPAID {result.Result}, {payoutData.State}, {result.Message}");
         bool updateBlob = false;
 		if (result.Result is PayResult.Error or PayResult.CouldNotFindRoute && payoutData.State == PayoutState.AwaitingPayment)
 		{
@@ -124,7 +124,8 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
 			updateBlob = true;
 			if (errorCount >= 10)
 				payoutData.State = PayoutState.Cancelled;
-		}
+            Logs.PayServer.LogInformation($"INCREMENTED");
+        }
 		if (payoutData.State != PayoutState.InProgress || payoutData.Proof is not null)
 		{
 			await _pullPaymentHostedService.MarkPaid(new MarkPayoutRequest()
@@ -132,7 +133,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
 				State = payoutData.State,
 				PayoutId = payoutData.Id,
 				Proof = payoutData.GetProofBlobJson(),
-				Blob = updateBlob ? blob : null
+				UpdateBlob = updateBlob ? blob : null
 			});
 		}
         return result;
