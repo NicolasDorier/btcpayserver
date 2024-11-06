@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -193,6 +194,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
     async Task<ResultVM> TrypayBolt(
             ILightningClient lightningClient, PayoutBlob payoutBlob, PayoutData payoutData, BOLT11PaymentRequest bolt11PaymentRequest, CancellationToken cancellationToken)
     {
+        Logs.PayServer.LogInformation("Try Pay");
         var boltAmount = bolt11PaymentRequest.MinimumAmount.ToDecimal(LightMoneyUnit.BTC);
 
         // BoltAmount == 0: Any amount is OK.
@@ -200,6 +202,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         // Core-Lightning do not support it! It would just refuse to pay more than the boltAmount.
         if (boltAmount != payoutData.Amount.Value && boltAmount != 0.0m)
         {
+            Logs.PayServer.LogInformation($"The BOLT11 invoice amount ({boltAmount} {payoutData.Currency}) did not match the payout's amount ({payoutData.Amount.GetValueOrDefault()} {payoutData.Currency})");
             payoutData.State = PayoutState.Cancelled;
             return new ResultVM
             {
@@ -212,6 +215,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
 
         if (bolt11PaymentRequest.ExpiryDate < DateTimeOffset.Now)
         {
+            Logs.PayServer.LogInformation($"The BOLT11 invoice expiry date ({bolt11PaymentRequest.ExpiryDate}) has expired");
             payoutData.State = PayoutState.Cancelled;
             return new ResultVM
             {
@@ -237,6 +241,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
             {
                 // Payment failed for sure... we can try again later!
                 payoutData.State = PayoutState.AwaitingPayment;
+                Logs.PayServer.LogInformation($"Unable to find a route for the payment, check your channel liquidity");
                 return new ResultVM
                 {
                     PayoutId = payoutData.Id,
@@ -268,6 +273,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
                 exceptionMessage = $" ({exception.Message})";
             if (exceptionMessage == "")
                 exceptionMessage = $" ({pay?.ErrorDetail})";
+            Logs.PayServer.LogInformation($"Unable to confirm the payment of the invoice" + exceptionMessage);
             return new ResultVM
             {
                 PayoutId = payoutData.Id,
@@ -283,6 +289,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         {
             payoutData.State = PayoutState.Completed;
             payoutData.SetProofBlob(proofBlob, null);
+            Logs.PayServer.LogInformation("Paid out");
             return new ResultVM
             {
                 PayoutId = payoutData.Id,
@@ -299,6 +306,8 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
             string reason = "";
             if (pay?.ErrorDetail is string err)
                 reason = $" ({err})";
+
+            Logs.PayServer.LogInformation($"The payment failed{reason}");
             return new ResultVM
             {
                 PayoutId = payoutData.Id,
@@ -312,6 +321,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
             // Payment will be saved as pending, the LightningPendingPayoutListener will handle settling/cancelling
             payoutData.State = PayoutState.InProgress;
             payoutData.SetProofBlob(proofBlob, null);
+            Logs.PayServer.LogInformation("The payment has been initiated but is still in-flight.");
             return new ResultVM
             {
                 PayoutId = payoutData.Id,

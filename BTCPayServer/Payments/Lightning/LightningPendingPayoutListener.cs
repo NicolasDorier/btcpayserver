@@ -105,18 +105,21 @@ public class LightningPendingPayoutListener : BaseAsyncService
 					}
 					if (payment is null)
 					{
-						payoutData.State = PayoutState.Cancelled;
+                        Logs.PayServer.LogInformation("Pending: No payment");
+                        payoutData.State = PayoutState.Cancelled;
 						continue;
 					}
 					switch (payment.Status)
 					{
 						case LightningPaymentStatus.Complete:
-							payoutData.State = PayoutState.Completed;
+                            Logs.PayServer.LogInformation("Complete");
+                            payoutData.State = PayoutState.Completed;
 							proof.Preimage = payment.Preimage;
 							payoutData.SetProofBlob(proof, null);
 							break;
 						case LightningPaymentStatus.Failed:
-							payoutData.State = PayoutState.Cancelled;
+                            Logs.PayServer.LogInformation("Payment failed");
+                            payoutData.State = PayoutState.Cancelled;
 							break;
 					}
 				}
