@@ -269,10 +269,13 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         {
             payoutData.State = PayoutState.Cancelled;
             var exceptionMessage = "";
+            Logs.PayServer.LogInformation($"EXCEPTION MESSAGE: " + exception?.Message);
+            Logs.PayServer.LogInformation($"EXCEPTION MESSAGE: " + exception?.GetType().Name);
             if (exception is not null)
                 exceptionMessage = $" ({exception.Message})";
             if (exceptionMessage == "")
                 exceptionMessage = $" ({pay?.ErrorDetail})";
+            Logs.PayServer.LogInformation($"ERROR DETAILS: " + pay?.ErrorDetail);
             Logs.PayServer.LogInformation($"Unable to confirm the payment of the invoice" + exceptionMessage);
             return new ResultVM
             {
