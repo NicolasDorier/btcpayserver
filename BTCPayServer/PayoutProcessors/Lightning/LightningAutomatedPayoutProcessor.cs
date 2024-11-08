@@ -236,7 +236,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
                 {
                     Amount = new LightMoney((decimal)payoutData.Amount, LightMoneyUnit.BTC)
                 }, cancellationToken);
-
+            Logs.PayServer.LogInformation($"pay result " + pay?.Result);
             if (pay?.Result is PayResult.CouldNotFindRoute)
             {
                 // Payment failed for sure... we can try again later!
