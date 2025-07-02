@@ -151,14 +151,9 @@ namespace BTCPayServer.Payments.Lightning
             })!;
         }
 
-        private Task<Data.StoreData> GetStore(string storeId)
+        private async Task<Data.StoreData> GetStore(string storeId)
         {
-            return _memoryCache.GetOrCreateAsync(GetCacheKey("store-" + storeId), async (cacheEntry) =>
-            {
-                var store = await _storeRepository.FindStore(storeId);
-                cacheEntry.AbsoluteExpiration = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(1.0);
-                return store;
-            })!;
+            return await _storeRepository.FindStore(storeId);
         }
 
         private static DateTimeOffset GetExpiration(InvoiceEntity invoice)
