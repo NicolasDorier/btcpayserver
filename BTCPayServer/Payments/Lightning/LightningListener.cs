@@ -484,6 +484,7 @@ namespace BTCPayServer.Payments.Lightning
 
         internal bool AddListenedInvoice(ListenedInvoice invoice)
         {
+            Logs.PayServer.LogInformation("ADDED " + invoice.PaymentMethodDetails.InvoiceId);
             return _ListenedInvoices.TryAdd(invoice.PaymentMethodDetails.InvoiceId, invoice);
         }
 
@@ -540,14 +541,25 @@ namespace BTCPayServer.Payments.Lightning
                 {
                     var notification = await session.WaitInvoice(cancellation);
                     if (!_ListenedInvoices.TryGetValue(notification.Id, out var listenedInvoice))
+                    {
+                        Logs.PayServer.LogInformation("NO match for " + notification.Id);
                         continue;
+                    }
+
+                    Logs.PayServer.LogInformation("notification.Id == listenedInvoice.PaymentMethodDetails.InvoiceId");
+                    Logs.PayServer.LogInformation($"{notification.Id} == {listenedInvoice.PaymentMethodDetails.InvoiceId}");
+
+                    Logs.PayServer.LogInformation("notification.BOLT11 == listenedInvoice.PaymentMethod.Destination");
+                    Logs.PayServer.LogInformation($"{notification.BOLT11} == {listenedInvoice.PaymentMethod.Destination}");
+
                     if (notification.Id == listenedInvoice.PaymentMethodDetails.InvoiceId &&
                         (notification.BOLT11 == listenedInvoice.PaymentMethod.Destination ||
-                        notification.GetPaymentHash(_network.NBitcoinNetwork) == GetPaymentHash(listenedInvoice)))
+                         notification.GetPaymentHash(_network.NBitcoinNetwork) == GetPaymentHash(listenedInvoice)))
                     {
                         if (notification.Status == LightningInvoiceStatus.Paid &&
                             notification.PaidAt.HasValue && notification.Amount != null)
                         {
+                            Logs.PayServer.LogInformation("ADD PAYMENT");
                             if (await AddPayment(notification, listenedInvoice.InvoiceId, listenedInvoice.PaymentMethod.PaymentMethodId))
                             {
                                 Logs.PayServer.LogInformation("{CryptoCode} (Lightning): Payment detected via notification ({InvoiceId})", _network.CryptoCode,
