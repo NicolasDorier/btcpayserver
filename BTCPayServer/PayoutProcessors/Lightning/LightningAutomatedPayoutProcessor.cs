@@ -237,11 +237,13 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
 
         try
         {
+            Logs.PayServer.LogInformation("Paying...");
             var pay = await lightningClient.Pay(bolt11PaymentRequest.ToString(),
                 new PayInvoiceParams()
                 {
                     Amount = new LightMoney((decimal)payoutData.Amount, LightMoneyUnit.BTC)
                 }, cancellationToken);
+            Logs.PayServer.LogInformation("Paid " + pay.Result);
             if (pay is { Result: PayResult.CouldNotFindRoute })
             {
                 var err = pay.ErrorDetail is null ? "" : $" ({pay.ErrorDetail})";
@@ -267,7 +269,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         {
             errorReason ??= ex.Message;
         }
-
+        Logs.PayServer.LogInformation("errorreason " +errorReason);
         if (success is null || preimage is null || amountSent is null)
         {
             LightningPayment payment = null;
@@ -287,11 +289,14 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
             };
             amountSent ??= payment?.AmountSent;
             preimage ??= payment?.Preimage;
+            Logs.PayServer.LogInformation("errorreason2 " +errorReason);
+            Logs.PayServer.LogInformation("paymentStatus " + payment?.Status ?? "");
         }
 
+        Logs.PayServer.LogInformation("preimage");
         if (preimage is not null)
             proofBlob.Preimage = preimage;
-        
+
         var vm = new ResultVM
         {
             PayoutId = payoutData.Id,
@@ -300,6 +305,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         };
         if (success is true)
         {
+            Logs.PayServer.LogInformation("Complete");
             payoutData.State = PayoutState.Completed;
             payoutData.SetProofBlob(proofBlob, null);
             vm.Message = amountSent != null
@@ -308,6 +314,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         }
         else if (success is false)
         {
+            Logs.PayServer.LogInformation("awaiting");
             payoutData.State = PayoutState.AwaitingPayment;
             var err = errorReason is null ? "" : $" ({errorReason})";
             vm.Message = $"The payment failed{err}";
@@ -315,6 +322,7 @@ public class LightningAutomatedPayoutProcessor : BaseAutomatedPayoutProcessor<Li
         else
         {
             // Payment will be saved as pending, the LightningPendingPayoutListener will handle settling/cancelling
+            Logs.PayServer.LogInformation("inprogress");
             payoutData.State = PayoutState.InProgress;
             payoutData.SetProofBlob(proofBlob, null);
             vm.Message = "The payment has been initiated but is still in-flight.";

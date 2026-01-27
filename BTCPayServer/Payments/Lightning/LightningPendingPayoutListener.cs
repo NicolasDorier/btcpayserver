@@ -97,6 +97,7 @@ public class LightningPendingPayoutListener : BaseAsyncService
                     LightningPayment payment = null;
                     try
                     {
+                        Logs.PayServer.LogInformation("GETPAY " + (proof is not null));
                         if (proof is not null)
                             payment = await client.GetPayment(proof.PaymentHash, CancellationToken);
                     }
@@ -121,8 +122,11 @@ public class LightningPendingPayoutListener : BaseAsyncService
                         _ => PayoutState.Cancelled
                     };
 
+                    Logs.PayServer.LogInformation("pending state: " + payoutData.State);
+
                     if (payment is { Status: LightningPaymentStatus.Complete })
                     {
+                        Logs.PayServer.LogInformation("pending complete");
                         proof.Preimage = payment.Preimage;
                         payoutData.SetProofBlob(proof, null);
                     }
@@ -132,6 +136,7 @@ public class LightningPendingPayoutListener : BaseAsyncService
                 {
                     if (payoutData.State != PayoutState.InProgress)
                     {
+                        Logs.PayServer.LogInformation("mark paid " + payoutData.State);
                         // This update can fail if the payout has been updated in the meantime
                         await _pullPaymentHostedService.MarkPaid(new HostedServices.MarkPayoutRequest()
                         {
