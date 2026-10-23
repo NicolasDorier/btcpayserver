@@ -172,7 +172,7 @@ namespace BTCPayServer.Hosting
                     var source = element.GetAttribute("src");
                     var isTrustedSource = IsTrustedIframeSource(source);
                     var sandbox = "allow-scripts allow-forms allow-popups";
-                    if (isTrustedSource || IsPeerTubeIframeSource(source))
+                    if (isTrustedSource)
                     {
                         sandbox += " allow-same-origin";
                     }
@@ -225,20 +225,6 @@ namespace BTCPayServer.Hosting
         {
             return AllowedIframePermissions.Contains(permission) ||
                    (isTrustedSource && permission.Equals("clipboard-write", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static bool IsPeerTubeIframeSource(string source)
-        {
-            if (!TryCreateIframeUri(source, out var uri))
-                return false;
-
-            const string peerTubeEmbedPath = "/videos/embed/";
-            if (!uri.AbsolutePath.StartsWith(peerTubeEmbedPath, StringComparison.Ordinal))
-                return false;
-
-            var videoId = uri.AbsolutePath[peerTubeEmbedPath.Length..];
-            return videoId.Length > 0 &&
-                   videoId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_');
         }
 
         private static bool TryCreateIframeUri(string source, out Uri uri)
