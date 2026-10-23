@@ -35,10 +35,8 @@ namespace BTCPayServer.Abstractions.Services
             return Raw(sw.ToString());
         }
 
-        public IHtmlContent RawRichText(string value)
-        {
-            return _htmlHelper.Raw(_richTextHtmlSanitizer.Sanitize(value));
-        }
+        public IHtmlContent RawRichText(string value) =>
+            _htmlHelper.Raw(_richTextHtmlSanitizer.Sanitize(value));
 
         public IHtmlContent RawEncode(string value)
         {

@@ -8,7 +8,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void RestrictsCssProperties()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize(
             "<style>p { color: red; background-image: url(https://example.com/pixel); position: fixed; }</style>" +
@@ -23,7 +23,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void EnforcesIframeSecurityAttributes()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize(
             "<iframe src=\"https://www.youtube.com/embed/jF3W7EkXd4k\" " +
@@ -44,7 +44,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void RemovesUnsupportedIframeAttributeValues()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize(
             "<iframe src=\"https://example.com/embed\" allow=\"autoplay; camera\" " +
@@ -60,7 +60,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void RestrictsClipboardWriteToTrustedIframeHosts()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize(
             "<iframe src=\"https://example.com/embed\" allow=\"autoplay; clipboard-write\"></iframe>");
@@ -79,11 +79,12 @@ public class HtmlSanitizerTests
     [InlineData("https://player.youku.com/embed/video")]
     [InlineData("https://jumpingbean.tv/videos/embed/video")]
     [InlineData("https://v.qq.com/txp/iframe/player.html")]
+    [InlineData("https://rumble.com/embed/v123456")]
     [InlineData("https://twitter.com/embed")]
     [InlineData("https://syndication.twitter.com/embed")]
     public void AllowsSameOriginForSummernoteIframeHosts(string source)
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
 
@@ -98,7 +99,7 @@ public class HtmlSanitizerTests
     [InlineData("https://user@www.youtube.com/embed/video")]
     public void DoesNotAllowSameOriginForOtherIframeSources(string source)
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
 
@@ -109,7 +110,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void DefaultSanitizerRemovesRichContent()
     {
-        var sanitizer = BTCPayServerServices.CreateHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.Create();
 
         var sanitized = sanitizer.Sanitize(
             "<style>p { color: red; }</style>" +
@@ -124,7 +125,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void RichTextSanitizerAllowsImagesAndVideos()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize(
             "<img src=\"https://example.com/image.png\">" +
@@ -137,7 +138,7 @@ public class HtmlSanitizerTests
     [Fact]
     public void RichTextSanitizerDoesNotRestoreRejectedImageUrls()
     {
-        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+        var sanitizer = HtmlSanitizerFactory.CreateRichText();
 
         var sanitized = sanitizer.Sanitize("<img src=\"javascript:alert(1)\">");
 

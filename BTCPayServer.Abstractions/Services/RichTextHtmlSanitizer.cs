@@ -2,14 +2,7 @@ using Ganss.Xss;
 
 namespace BTCPayServer.Abstractions.Services;
 
-public sealed class RichTextHtmlSanitizer
+public sealed class RichTextHtmlSanitizer(HtmlSanitizer sanitizer)
 {
-    private readonly HtmlSanitizer _sanitizer;
-
-    public RichTextHtmlSanitizer(HtmlSanitizer sanitizer)
-    {
-        _sanitizer = sanitizer;
-    }
-
-    public string Sanitize(string html) => _sanitizer.Sanitize(html);
+    public string Sanitize(string html) => sanitizer.Sanitize(html);
 }

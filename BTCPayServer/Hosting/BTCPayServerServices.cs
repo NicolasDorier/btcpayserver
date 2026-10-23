@@ -61,12 +61,10 @@ using BTCPayServer.Services.Reporting;
 using BTCPayServer.Services.WalletFileParsing;
 using BTCPayServer.Payments.LNURLPay;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using BTCPayServer.Abstractions.Constants;
 using BTCPayServer.Client;
 using BTCPayServer.Lightning.LNDhub;
 using BTCPayServer.Payouts;
-using BTCPayServer.Plugins.Bitcoin;
 using ExchangeSharp;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -78,165 +76,10 @@ namespace BTCPayServer.Hosting
 {
     public static class BTCPayServerServices
     {
-        private static readonly HashSet<string> AllowedIframePermissions = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "accelerometer",
-            "autoplay",
-            "encrypted-media",
-            "gyroscope",
-            "picture-in-picture",
-            "web-share"
-        };
-
-        private static readonly HashSet<string> IframeHostsAllowedSameOrigin = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "www.youtube.com",
-            "www.youtube-nocookie.com",
-            "www.facebook.com",
-            "vine.co",
-            "instagram.com",
-            "player.vimeo.com",
-            "www.dailymotion.com",
-            "player.youku.com",
-            "jumpingbean.tv",
-            "v.qq.com",
-            "twitter.com",
-            "syndication.twitter.com"
-        };
-
         public static IServiceCollection RegisterJsonConverter(this IServiceCollection services, Func<BTCPayNetwork, JsonConverter> create)
         {
             services.AddSingleton<IJsonConverterRegistration, JsonConverterRegistration>((s) => new JsonConverterRegistration(create));
             return services;
-        }
-
-        internal static Ganss.Xss.HtmlSanitizer CreateHtmlSanitizer()
-        {
-            var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
-            htmlSanitizer.AllowedTags.Remove("img");
-            htmlSanitizer.AllowedTags.Remove("iframe");
-            htmlSanitizer.AllowedTags.Remove("style");
-            htmlSanitizer.AllowedTags.Remove("video");
-            htmlSanitizer.AllowedAttributes.Remove("style");
-            htmlSanitizer.AllowedAttributes.Add("class");
-            htmlSanitizer.AllowedSchemes.Add("mailto");
-            htmlSanitizer.AllowedSchemes.Add("bitcoin");
-            htmlSanitizer.AllowedSchemes.Add("lightning");
-            return htmlSanitizer;
-        }
-
-        internal static Ganss.Xss.HtmlSanitizer CreateRichTextHtmlSanitizer()
-        {
-            var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
-
-            htmlSanitizer.AllowedCssProperties.Clear();
-            foreach (var property in new[]
-                     {
-                         "background-color",
-                         "border-color",
-                         "border-radius",
-                         "border-style",
-                         "border-width",
-                         "color",
-                         "font-family",
-                         "font-size",
-                         "font-style",
-                         "font-weight",
-                         "letter-spacing",
-                         "line-height",
-                         "list-style-position",
-                         "list-style-type",
-                         "overflow-wrap",
-                         "text-align",
-                         "text-decoration",
-                         "text-transform",
-                         "vertical-align",
-                         "white-space",
-                         "word-break",
-                         "word-spacing"
-                     })
-            {
-                htmlSanitizer.AllowedCssProperties.Add(property);
-            }
-            htmlSanitizer.PostProcessNode += (sender, args) =>
-            {
-                if (args.Node is not AngleSharp.Dom.IElement element)
-                    return;
-
-                if (element.LocalName.Equals("img", StringComparison.OrdinalIgnoreCase))
-                {
-                    element.ClassList.Add("img-fluid");
-                }
-                else if (element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
-                {
-                    var source = element.GetAttribute("src");
-                    var isTrustedSource = IsTrustedIframeSource(source);
-                    var sandbox = "allow-scripts allow-forms allow-popups";
-                    if (isTrustedSource)
-                    {
-                        sandbox += " allow-same-origin";
-                    }
-                    element.SetAttribute("sandbox", sandbox);
-                    element.SetAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-
-                    if (element.GetAttribute("allow") is { } allow &&
-                        allow.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                            .Any(permission => !IsAllowedIframePermission(permission, isTrustedSource)))
-                    {
-                        element.RemoveAttribute("allow");
-                    }
-
-                    if (element.GetAttribute("loading") is { } loading &&
-                        loading is not ("eager" or "lazy"))
-                    {
-                        element.RemoveAttribute("loading");
-                    }
-
-                    if (element.GetAttribute("frameborder") is { } frameBorder && frameBorder != "0")
-                    {
-                        element.RemoveAttribute("frameborder");
-                    }
-                }
-            };
-
-            htmlSanitizer.AllowedAttributes.Add("class");
-            htmlSanitizer.AllowedTags.Add("iframe");
-            htmlSanitizer.AllowedTags.Add("style");
-            htmlSanitizer.AllowedTags.Add("video");
-            htmlSanitizer.AllowedAttributes.Add("allow");
-            htmlSanitizer.AllowedAttributes.Add("controls");
-            htmlSanitizer.AllowedAttributes.Add("frameborder");
-            htmlSanitizer.AllowedAttributes.Add("loading");
-            htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
-            htmlSanitizer.AllowedAttributes.Add("allowfullscreen");
-            htmlSanitizer.AllowedSchemes.Add("mailto");
-            htmlSanitizer.AllowedSchemes.Add("bitcoin");
-            htmlSanitizer.AllowedSchemes.Add("lightning");
-            return htmlSanitizer;
-        }
-
-        private static bool IsTrustedIframeSource(string source)
-        {
-            return TryCreateIframeUri(source, out var uri) &&
-                   IframeHostsAllowedSameOrigin.Contains(uri.IdnHost);
-        }
-
-        private static bool IsAllowedIframePermission(string permission, bool isTrustedSource)
-        {
-            return AllowedIframePermissions.Contains(permission) ||
-                   (isTrustedSource && permission.Equals("clipboard-write", StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static bool TryCreateIframeUri(string source, out Uri uri)
-        {
-            if (source?.StartsWith("//", StringComparison.Ordinal) is true)
-            {
-                source = $"https:{source}";
-            }
-
-            return Uri.TryCreate(source, UriKind.Absolute, out uri) &&
-                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
-                   string.IsNullOrEmpty(uri.UserInfo);
         }
 
         public static IServiceCollection AddBTCPayServer(this IServiceCollection services, IConfiguration configuration, Logs logs)
@@ -457,8 +300,8 @@ namespace BTCPayServer.Hosting
             services.AddSingleton<IPluginHookService, PluginHookService>(provider => provider.GetService<PluginHookService>());
             services.TryAddTransient<Safe>();
             services.TryAddTransient<DisplayFormatter>();
-            services.TryAddSingleton<Ganss.Xss.HtmlSanitizer>(_ => CreateHtmlSanitizer());
-            services.TryAddSingleton<RichTextHtmlSanitizer>(_ => new RichTextHtmlSanitizer(CreateRichTextHtmlSanitizer()));
+            services.TryAddSingleton<Ganss.Xss.HtmlSanitizer>(_ => HtmlSanitizerFactory.Create());
+            services.TryAddSingleton<RichTextHtmlSanitizer>(_ => new RichTextHtmlSanitizer(HtmlSanitizerFactory.CreateRichText()));
 
             services.AddSingleton<TransactionLinkProviders>();
             services.TryAddSingleton<LightningConfigurationProvider>();
