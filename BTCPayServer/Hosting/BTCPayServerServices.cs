@@ -145,9 +145,12 @@ namespace BTCPayServer.Hosting
                 if (args.Node is AngleSharp.Dom.IElement element &&
                     element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
                 {
-                    element.SetAttribute("sandbox", "allow-scripts allow-forms allow-popups");
-                    element.SetAttribute("referrerpolicy", "no-referrer");
+                    element.SetAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
+                    element.SetAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
+                    element.SetAttribute("referrerpolicy", "strict-origin-when-cross-origin");
                     element.SetAttribute("loading", "lazy");
+                    element.SetAttribute("frameborder", "0");
+                    element.SetAttribute("allowfullscreen", string.Empty);
                 }
             };
 
@@ -155,6 +158,7 @@ namespace BTCPayServer.Hosting
             htmlSanitizer.AllowedTags.Add("iframe");
             htmlSanitizer.AllowedTags.Add("style");
             htmlSanitizer.AllowedTags.Remove("img");
+            htmlSanitizer.AllowedAttributes.Add("frameborder");
             htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
             htmlSanitizer.AllowedAttributes.Add("allowfullscreen");
             htmlSanitizer.AllowedSchemes.Add("mailto");

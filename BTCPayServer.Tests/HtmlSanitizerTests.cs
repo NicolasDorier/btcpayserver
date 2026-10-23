@@ -29,10 +29,12 @@ public class HtmlSanitizerTests
             "<iframe src=\"https://example.com/embed\" sandbox=\"allow-same-origin allow-top-navigation\" " +
             "referrerpolicy=\"unsafe-url\" loading=\"eager\"></iframe>");
 
-        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups\"", sanitized);
-        Assert.Contains("referrerpolicy=\"no-referrer\"", sanitized);
+        Assert.Contains("sandbox=\"allow-scripts allow-same-origin allow-forms allow-popups\"", sanitized);
+        Assert.Contains("allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\"", sanitized);
+        Assert.Contains("referrerpolicy=\"strict-origin-when-cross-origin\"", sanitized);
         Assert.Contains("loading=\"lazy\"", sanitized);
-        Assert.DoesNotContain("allow-same-origin", sanitized);
+        Assert.Contains("frameborder=\"0\"", sanitized);
+        Assert.Contains("allowfullscreen=\"\"", sanitized);
         Assert.DoesNotContain("allow-top-navigation", sanitized);
         Assert.DoesNotContain("unsafe-url", sanitized);
         Assert.DoesNotContain("eager", sanitized);
