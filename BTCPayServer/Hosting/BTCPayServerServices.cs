@@ -114,29 +114,21 @@ namespace BTCPayServer.Hosting
         internal static Ganss.Xss.HtmlSanitizer CreateHtmlSanitizer()
         {
             var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
+            htmlSanitizer.AllowedTags.Remove("img");
+            htmlSanitizer.AllowedTags.Remove("iframe");
+            htmlSanitizer.AllowedTags.Remove("style");
+            htmlSanitizer.AllowedTags.Remove("video");
+            htmlSanitizer.AllowedAttributes.Remove("style");
+            htmlSanitizer.AllowedAttributes.Add("class");
+            htmlSanitizer.AllowedSchemes.Add("mailto");
+            htmlSanitizer.AllowedSchemes.Add("bitcoin");
+            htmlSanitizer.AllowedSchemes.Add("lightning");
+            return htmlSanitizer;
+        }
 
-            htmlSanitizer.RemovingTag += (sender, args) =>
-            {
-                if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase))
-                {
-                    if (!args.Tag.ClassList.Contains("img-fluid"))
-                    {
-                        args.Tag.ClassList.Add("img-fluid");
-                    }
-
-                    args.Cancel = true;
-                }
-            };
-
-            htmlSanitizer.RemovingAttribute += (sender, args) =>
-            {
-                if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase) &&
-                    args.Attribute.Name.Equals("src", StringComparison.InvariantCultureIgnoreCase) &&
-                    args.Reason == Ganss.Xss.RemoveReason.NotAllowedUrlValue)
-                {
-                    args.Cancel = true;
-                }
-            };
+        internal static Ganss.Xss.HtmlSanitizer CreateRichTextHtmlSanitizer()
+        {
+            var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
 
             htmlSanitizer.AllowedCssProperties.Clear();
             foreach (var property in new[]
@@ -169,8 +161,14 @@ namespace BTCPayServer.Hosting
             }
             htmlSanitizer.PostProcessNode += (sender, args) =>
             {
-                if (args.Node is AngleSharp.Dom.IElement element &&
-                    element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
+                if (args.Node is not AngleSharp.Dom.IElement element)
+                    return;
+
+                if (element.LocalName.Equals("img", StringComparison.OrdinalIgnoreCase))
+                {
+                    element.ClassList.Add("img-fluid");
+                }
+                else if (element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
                 {
                     var sandbox = "allow-scripts allow-forms allow-popups";
                     if (IsTrustedIframeSource(element.GetAttribute("src")))
@@ -203,8 +201,9 @@ namespace BTCPayServer.Hosting
             htmlSanitizer.AllowedAttributes.Add("class");
             htmlSanitizer.AllowedTags.Add("iframe");
             htmlSanitizer.AllowedTags.Add("style");
-            htmlSanitizer.AllowedTags.Remove("img");
+            htmlSanitizer.AllowedTags.Add("video");
             htmlSanitizer.AllowedAttributes.Add("allow");
+            htmlSanitizer.AllowedAttributes.Add("controls");
             htmlSanitizer.AllowedAttributes.Add("frameborder");
             htmlSanitizer.AllowedAttributes.Add("loading");
             htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
@@ -447,6 +446,7 @@ namespace BTCPayServer.Hosting
             services.TryAddTransient<Safe>();
             services.TryAddTransient<DisplayFormatter>();
             services.TryAddSingleton<Ganss.Xss.HtmlSanitizer>(_ => CreateHtmlSanitizer());
+            services.TryAddSingleton<RichTextHtmlSanitizer>(_ => new RichTextHtmlSanitizer(CreateRichTextHtmlSanitizer()));
 
             services.AddSingleton<TransactionLinkProviders>();
             services.TryAddSingleton<LightningConfigurationProvider>();
