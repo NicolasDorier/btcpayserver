@@ -57,6 +57,17 @@ public class HtmlSanitizerTests
         Assert.DoesNotContain("allow-same-origin", sanitized);
     }
 
+    [Fact]
+    public void RestrictsClipboardWriteToTrustedIframeHosts()
+    {
+        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize(
+            "<iframe src=\"https://example.com/embed\" allow=\"autoplay; clipboard-write\"></iframe>");
+
+        Assert.DoesNotContain(" allow=", sanitized);
+    }
+
     [Theory]
     [InlineData("https://www.youtube.com/embed/video")]
     [InlineData("//www.youtube-nocookie.com/embed/video")]
@@ -91,6 +102,35 @@ public class HtmlSanitizerTests
         var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
 
         Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups\"", sanitized);
+        Assert.DoesNotContain("allow-same-origin", sanitized);
+    }
+
+    [Theory]
+    [InlineData("https://peertube.example/videos/embed/2d83b71f-4c98-4ae6-a784-9e9a6dbb2727")]
+    [InlineData("//video.example/videos/embed/abc123?loop=0&autoplay=0&muted=0")]
+    [InlineData("http://peertube.example/videos/embed/abc123")]
+    public void AllowsSameOriginForPeerTubeEmbeds(string source)
+    {
+        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
+
+        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups allow-same-origin\"", sanitized);
+    }
+
+    [Theory]
+    [InlineData("https://peertube.example/videos/watch/abc123")]
+    [InlineData("https://peertube.example/path/videos/embed/abc123")]
+    [InlineData("https://peertube.example/videos/embed/")]
+    [InlineData("https://peertube.example/videos/embed/abc123/extra")]
+    [InlineData("https://peertube.example/videos/embed/abc.123")]
+    [InlineData("https://user@peertube.example/videos/embed/abc123")]
+    public void DoesNotTreatOtherUrlsAsPeerTubeEmbeds(string source)
+    {
+        var sanitizer = BTCPayServerServices.CreateRichTextHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
+
         Assert.DoesNotContain("allow-same-origin", sanitized);
     }
 
