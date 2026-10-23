@@ -89,6 +89,22 @@ namespace BTCPayServer.Hosting
             "web-share"
         };
 
+        private static readonly HashSet<string> IframeHostsAllowedSameOrigin = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "www.youtube.com",
+            "www.youtube-nocookie.com",
+            "www.facebook.com",
+            "vine.co",
+            "instagram.com",
+            "player.vimeo.com",
+            "www.dailymotion.com",
+            "player.youku.com",
+            "jumpingbean.tv",
+            "v.qq.com",
+            "twitter.com",
+            "syndication.twitter.com"
+        };
+
         public static IServiceCollection RegisterJsonConverter(this IServiceCollection services, Func<BTCPayNetwork, JsonConverter> create)
         {
             services.AddSingleton<IJsonConverterRegistration, JsonConverterRegistration>((s) => new JsonConverterRegistration(create));
@@ -156,7 +172,12 @@ namespace BTCPayServer.Hosting
                 if (args.Node is AngleSharp.Dom.IElement element &&
                     element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
                 {
-                    element.SetAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
+                    var sandbox = "allow-scripts allow-forms allow-popups";
+                    if (IsTrustedIframeSource(element.GetAttribute("src")))
+                    {
+                        sandbox += " allow-same-origin";
+                    }
+                    element.SetAttribute("sandbox", sandbox);
                     element.SetAttribute("referrerpolicy", "strict-origin-when-cross-origin");
 
                     if (element.GetAttribute("allow") is { } allow &&
@@ -192,6 +213,19 @@ namespace BTCPayServer.Hosting
             htmlSanitizer.AllowedSchemes.Add("bitcoin");
             htmlSanitizer.AllowedSchemes.Add("lightning");
             return htmlSanitizer;
+        }
+
+        private static bool IsTrustedIframeSource(string source)
+        {
+            if (source?.StartsWith("//", StringComparison.Ordinal) is true)
+            {
+                source = $"https:{source}";
+            }
+
+            return Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
+                   string.IsNullOrEmpty(uri.UserInfo) &&
+                   IframeHostsAllowedSameOrigin.Contains(uri.IdnHost);
         }
 
         public static IServiceCollection AddBTCPayServer(this IServiceCollection services, IConfiguration configuration, Logs logs)

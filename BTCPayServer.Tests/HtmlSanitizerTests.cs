@@ -31,7 +31,7 @@ public class HtmlSanitizerTests
             "allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" " +
             "loading=\"lazy\" frameborder=\"0\" allowfullscreen></iframe>");
 
-        Assert.Contains("sandbox=\"allow-scripts allow-same-origin allow-forms allow-popups\"", sanitized);
+        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups allow-same-origin\"", sanitized);
         Assert.Contains("allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\"", sanitized);
         Assert.Contains("referrerpolicy=\"strict-origin-when-cross-origin\"", sanitized);
         Assert.Contains("loading=\"lazy\"", sanitized);
@@ -53,5 +53,44 @@ public class HtmlSanitizerTests
         Assert.DoesNotContain(" allow=", sanitized);
         Assert.DoesNotContain(" loading=", sanitized);
         Assert.DoesNotContain(" frameborder=", sanitized);
+        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups\"", sanitized);
+        Assert.DoesNotContain("allow-same-origin", sanitized);
+    }
+
+    [Theory]
+    [InlineData("https://www.youtube.com/embed/video")]
+    [InlineData("//www.youtube-nocookie.com/embed/video")]
+    [InlineData("https://www.facebook.com/plugins/video.php")]
+    [InlineData("https://vine.co/v/video/embed/simple")]
+    [InlineData("https://instagram.com/p/video/embed/")]
+    [InlineData("https://player.vimeo.com/video/123")]
+    [InlineData("https://www.dailymotion.com/embed/video/123")]
+    [InlineData("https://player.youku.com/embed/video")]
+    [InlineData("https://jumpingbean.tv/videos/embed/video")]
+    [InlineData("https://v.qq.com/txp/iframe/player.html")]
+    [InlineData("https://twitter.com/embed")]
+    [InlineData("https://syndication.twitter.com/embed")]
+    public void AllowsSameOriginForSummernoteIframeHosts(string source)
+    {
+        var sanitizer = BTCPayServerServices.CreateHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
+
+        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups allow-same-origin\"", sanitized);
+    }
+
+    [Theory]
+    [InlineData("/relative")]
+    [InlineData("https://example.com/embed")]
+    [InlineData("https://www.youtube.com.example.com/embed/video")]
+    [InlineData("https://user@www.youtube.com/embed/video")]
+    public void DoesNotAllowSameOriginForOtherIframeSources(string source)
+    {
+        var sanitizer = BTCPayServerServices.CreateHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize($"<iframe src=\"{source}\"></iframe>");
+
+        Assert.Contains("sandbox=\"allow-scripts allow-forms allow-popups\"", sanitized);
+        Assert.DoesNotContain("allow-same-origin", sanitized);
     }
 }
