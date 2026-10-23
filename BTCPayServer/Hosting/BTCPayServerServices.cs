@@ -78,6 +78,17 @@ namespace BTCPayServer.Hosting
 {
     public static class BTCPayServerServices
     {
+        private static readonly HashSet<string> AllowedIframePermissions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "accelerometer",
+            "autoplay",
+            "clipboard-write",
+            "encrypted-media",
+            "gyroscope",
+            "picture-in-picture",
+            "web-share"
+        };
+
         public static IServiceCollection RegisterJsonConverter(this IServiceCollection services, Func<BTCPayNetwork, JsonConverter> create)
         {
             services.AddSingleton<IJsonConverterRegistration, JsonConverterRegistration>((s) => new JsonConverterRegistration(create));
@@ -146,11 +157,25 @@ namespace BTCPayServer.Hosting
                     element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
                 {
                     element.SetAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
-                    element.SetAttribute("allow", "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share");
                     element.SetAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-                    element.SetAttribute("loading", "lazy");
-                    element.SetAttribute("frameborder", "0");
-                    element.SetAttribute("allowfullscreen", string.Empty);
+
+                    if (element.GetAttribute("allow") is { } allow &&
+                        allow.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Any(permission => !AllowedIframePermissions.Contains(permission)))
+                    {
+                        element.RemoveAttribute("allow");
+                    }
+
+                    if (element.GetAttribute("loading") is { } loading &&
+                        loading is not ("eager" or "lazy"))
+                    {
+                        element.RemoveAttribute("loading");
+                    }
+
+                    if (element.GetAttribute("frameborder") is { } frameBorder && frameBorder != "0")
+                    {
+                        element.RemoveAttribute("frameborder");
+                    }
                 }
             };
 
@@ -158,7 +183,9 @@ namespace BTCPayServer.Hosting
             htmlSanitizer.AllowedTags.Add("iframe");
             htmlSanitizer.AllowedTags.Add("style");
             htmlSanitizer.AllowedTags.Remove("img");
+            htmlSanitizer.AllowedAttributes.Add("allow");
             htmlSanitizer.AllowedAttributes.Add("frameborder");
+            htmlSanitizer.AllowedAttributes.Add("loading");
             htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
             htmlSanitizer.AllowedAttributes.Add("allowfullscreen");
             htmlSanitizer.AllowedSchemes.Add("mailto");

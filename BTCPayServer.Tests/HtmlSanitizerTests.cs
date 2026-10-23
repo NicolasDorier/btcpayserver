@@ -26,8 +26,10 @@ public class HtmlSanitizerTests
         var sanitizer = BTCPayServerServices.CreateHtmlSanitizer();
 
         var sanitized = sanitizer.Sanitize(
-            "<iframe src=\"https://example.com/embed\" sandbox=\"allow-same-origin allow-top-navigation\" " +
-            "referrerpolicy=\"unsafe-url\" loading=\"eager\"></iframe>");
+            "<iframe src=\"https://www.youtube.com/embed/jF3W7EkXd4k\" " +
+            "sandbox=\"allow-top-navigation\" referrerpolicy=\"unsafe-url\" " +
+            "allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\" " +
+            "loading=\"lazy\" frameborder=\"0\" allowfullscreen></iframe>");
 
         Assert.Contains("sandbox=\"allow-scripts allow-same-origin allow-forms allow-popups\"", sanitized);
         Assert.Contains("allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\"", sanitized);
@@ -37,6 +39,19 @@ public class HtmlSanitizerTests
         Assert.Contains("allowfullscreen=\"\"", sanitized);
         Assert.DoesNotContain("allow-top-navigation", sanitized);
         Assert.DoesNotContain("unsafe-url", sanitized);
-        Assert.DoesNotContain("eager", sanitized);
+    }
+
+    [Fact]
+    public void RemovesUnsupportedIframeAttributeValues()
+    {
+        var sanitizer = BTCPayServerServices.CreateHtmlSanitizer();
+
+        var sanitized = sanitizer.Sanitize(
+            "<iframe src=\"https://example.com/embed\" allow=\"autoplay; camera\" " +
+            "loading=\"immediate\" frameborder=\"1\"></iframe>");
+
+        Assert.DoesNotContain(" allow=", sanitized);
+        Assert.DoesNotContain(" loading=", sanitized);
+        Assert.DoesNotContain(" frameborder=", sanitized);
     }
 }
