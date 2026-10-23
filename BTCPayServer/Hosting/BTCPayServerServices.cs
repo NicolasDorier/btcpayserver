@@ -84,6 +84,85 @@ namespace BTCPayServer.Hosting
             return services;
         }
 
+        internal static Ganss.Xss.HtmlSanitizer CreateHtmlSanitizer()
+        {
+            var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
+
+            htmlSanitizer.RemovingTag += (sender, args) =>
+            {
+                if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase))
+                {
+                    if (!args.Tag.ClassList.Contains("img-fluid"))
+                    {
+                        args.Tag.ClassList.Add("img-fluid");
+                    }
+
+                    args.Cancel = true;
+                }
+            };
+
+            htmlSanitizer.RemovingAttribute += (sender, args) =>
+            {
+                if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase) &&
+                    args.Attribute.Name.Equals("src", StringComparison.InvariantCultureIgnoreCase) &&
+                    args.Reason == Ganss.Xss.RemoveReason.NotAllowedUrlValue)
+                {
+                    args.Cancel = true;
+                }
+            };
+
+            htmlSanitizer.AllowedCssProperties.Clear();
+            foreach (var property in new[]
+                     {
+                         "background-color",
+                         "border-color",
+                         "border-radius",
+                         "border-style",
+                         "border-width",
+                         "color",
+                         "font-family",
+                         "font-size",
+                         "font-style",
+                         "font-weight",
+                         "letter-spacing",
+                         "line-height",
+                         "list-style-position",
+                         "list-style-type",
+                         "overflow-wrap",
+                         "text-align",
+                         "text-decoration",
+                         "text-transform",
+                         "vertical-align",
+                         "white-space",
+                         "word-break",
+                         "word-spacing"
+                     })
+            {
+                htmlSanitizer.AllowedCssProperties.Add(property);
+            }
+            htmlSanitizer.PostProcessNode += (sender, args) =>
+            {
+                if (args.Node is AngleSharp.Dom.IElement element &&
+                    element.LocalName.Equals("iframe", StringComparison.OrdinalIgnoreCase))
+                {
+                    element.SetAttribute("sandbox", "allow-scripts allow-forms allow-popups");
+                    element.SetAttribute("referrerpolicy", "no-referrer");
+                    element.SetAttribute("loading", "lazy");
+                }
+            };
+
+            htmlSanitizer.AllowedAttributes.Add("class");
+            htmlSanitizer.AllowedTags.Add("iframe");
+            htmlSanitizer.AllowedTags.Add("style");
+            htmlSanitizer.AllowedTags.Remove("img");
+            htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
+            htmlSanitizer.AllowedAttributes.Add("allowfullscreen");
+            htmlSanitizer.AllowedSchemes.Add("mailto");
+            htmlSanitizer.AllowedSchemes.Add("bitcoin");
+            htmlSanitizer.AllowedSchemes.Add("lightning");
+            return htmlSanitizer;
+        }
+
         public static IServiceCollection AddBTCPayServer(this IServiceCollection services, IConfiguration configuration, Logs logs)
         {
             services.TryAddScoped<CallbackGenerator>();
@@ -302,47 +381,7 @@ namespace BTCPayServer.Hosting
             services.AddSingleton<IPluginHookService, PluginHookService>(provider => provider.GetService<PluginHookService>());
             services.TryAddTransient<Safe>();
             services.TryAddTransient<DisplayFormatter>();
-            services.TryAddSingleton<Ganss.Xss.HtmlSanitizer>(o =>
-            {
-                var htmlSanitizer = new Ganss.Xss.HtmlSanitizer();
-
-                htmlSanitizer.RemovingAtRule += (sender, args) =>
-                {
-                };
-                htmlSanitizer.RemovingTag += (sender, args) =>
-                {
-                    if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase))
-                    {
-                        if (!args.Tag.ClassList.Contains("img-fluid"))
-                        {
-                            args.Tag.ClassList.Add("img-fluid");
-                        }
-
-                        args.Cancel = true;
-                    }
-                };
-
-                htmlSanitizer.RemovingAttribute += (sender, args) =>
-                {
-                    if (args.Tag.TagName.Equals("img", StringComparison.InvariantCultureIgnoreCase) &&
-                        args.Attribute.Name.Equals("src", StringComparison.InvariantCultureIgnoreCase) &&
-                        args.Reason == Ganss.Xss.RemoveReason.NotAllowedUrlValue)
-                    {
-                        args.Cancel = true;
-                    }
-                };
-                htmlSanitizer.RemovingStyle += (sender, args) => { args.Cancel = true; };
-                htmlSanitizer.AllowedAttributes.Add("class");
-                htmlSanitizer.AllowedTags.Add("iframe");
-                htmlSanitizer.AllowedTags.Add("style");
-                htmlSanitizer.AllowedTags.Remove("img");
-                htmlSanitizer.AllowedAttributes.Add("webkitallowfullscreen");
-                htmlSanitizer.AllowedAttributes.Add("allowfullscreen");
-                htmlSanitizer.AllowedSchemes.Add("mailto");
-                htmlSanitizer.AllowedSchemes.Add("bitcoin");
-                htmlSanitizer.AllowedSchemes.Add("lightning");
-                return htmlSanitizer;
-            });
+            services.TryAddSingleton<Ganss.Xss.HtmlSanitizer>(_ => CreateHtmlSanitizer());
 
             services.AddSingleton<TransactionLinkProviders>();
             services.TryAddSingleton<LightningConfigurationProvider>();
