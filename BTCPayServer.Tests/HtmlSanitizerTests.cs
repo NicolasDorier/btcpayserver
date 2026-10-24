@@ -114,7 +114,7 @@ public class HtmlSanitizerTests
 
         var sanitized = sanitizer.Sanitize(
             "<style>p { color: red; }</style>" +
-            "<p style=\"color: red\">Text</p>" +
+            "<p class=\"alert\" style=\"color: red\">Text</p>" +
             "<img src=\"https://example.com/image.png\">" +
             "<iframe src=\"https://www.youtube.com/embed/video\"></iframe>" +
             "<video controls src=\"https://example.com/video.mp4\"></video>");

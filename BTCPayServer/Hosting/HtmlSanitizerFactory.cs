@@ -42,7 +42,6 @@ internal static class HtmlSanitizerFactory
         htmlSanitizer.AllowedTags.Remove("style");
         htmlSanitizer.AllowedTags.Remove("video");
         htmlSanitizer.AllowedAttributes.Remove("style");
-        htmlSanitizer.AllowedAttributes.Add("class");
         htmlSanitizer.AllowedSchemes.Add("mailto");
         htmlSanitizer.AllowedSchemes.Add("bitcoin");
         htmlSanitizer.AllowedSchemes.Add("lightning");
