@@ -592,7 +592,7 @@ namespace BTCPayServer.Controllers
                                 transaction);
                         }
 
-                        if (!string.IsNullOrEmpty(vm.ReturnUrl))
+                        if (!string.IsNullOrEmpty(vm.ReturnUrl) && Url.IsLocalUrl(vm.ReturnUrl))
                         {
                             return LocalRedirect(vm.ReturnUrl);
                         }

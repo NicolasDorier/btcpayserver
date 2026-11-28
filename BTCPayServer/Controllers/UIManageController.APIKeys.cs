@@ -480,11 +480,11 @@ namespace BTCPayServer.Controllers
                     permissionValueItem.StoreMode = permissionValueItem.StoreMode == AddApiKeyViewModel.ApiKeyStoreMode.Specific
                         ? AddApiKeyViewModel.ApiKeyStoreMode.AllStores
                         : AddApiKeyViewModel.ApiKeyStoreMode.Specific;
+                    permissionValueItem.Value = true;
                     // Reset values for "all stores" option to their original values
                     if (permissionValueItem.StoreMode == AddApiKeyViewModel.ApiKeyStoreMode.AllStores)
                     {
                         permissionValueItem.SpecificStores = new List<string>();
-                        permissionValueItem.Value = true;
                     }
 
                     if (permissionValueItem.StoreMode == AddApiKeyViewModel.ApiKeyStoreMode.Specific &&
@@ -536,7 +536,7 @@ namespace BTCPayServer.Controllers
                     {
                         permissions.Add(Permission.Create(p.Permission));
                     }
-                    else if (p.StoreMode == AddApiKeyViewModel.ApiKeyStoreMode.Specific)
+                    else if (p.StoreMode == AddApiKeyViewModel.ApiKeyStoreMode.Specific && p.Value)
                     {
                         permissions.AddRange(p.SpecificStores.Select(s => Permission.Create(p.Permission, s)));
                     }

@@ -17,6 +17,7 @@ using BTCPayServer.Events;
 using BTCPayServer.Lightning;
 using BTCPayServer.Models.AccountViewModels;
 using BTCPayServer.Models.InvoicingModels;
+using BTCPayServer.Models.StoreViewModels;
 using BTCPayServer.Payments;
 using BTCPayServer.Payments.Lightning;
 using BTCPayServer.PayoutProcessors;
@@ -3124,6 +3125,15 @@ namespace BTCPayServer.Tests
             var walletViewerClient = await user.CreateClient(WalletPolicies.CanViewWallet);
             var walletId = await user.RegisterDerivationSchemeAsync("BTC", ScriptPubKeyType.Segwit, true);
 
+            var walletController = user.GetController<UIStoreOnChainWalletsController>();
+            var walletSettings = Assert.IsType<WalletSettingsViewModel>(
+                Assert.IsType<ViewResult>(await walletController.WalletSettings(user.StoreId, "BTC")).Model);
+            walletSettings.Enabled = false;
+            walletSettings.AccountKeys.Clear();
+            var invalidSettings = Assert.IsType<ViewResult>(await walletController.UpdateWalletSettings(walletSettings));
+            Assert.False(walletController.ModelState.IsValid);
+            Assert.True(Assert.IsType<WalletSettingsViewModel>(invalidSettings.Model).Enabled);
+
             //view only clients can't do jack shit with this API
             await AssertHttpError(403, async () =>
             {
@@ -3386,8 +3396,10 @@ namespace BTCPayServer.Tests
             Assert.NotNull(await walletViewerClient.GetOnChainWalletTransaction(walletId.StoreId, walletId.CryptoCode, txdata.TransactionHash.ToString()));
             var transaction = await client.GetOnChainWalletTransaction(walletId.StoreId, walletId.CryptoCode, txdata.TransactionHash.ToString());
 
-            // Check skip doesn't crash
-            await client.ShowOnChainWalletTransactions(walletId.StoreId, walletId.CryptoCode, skip: 1);
+            var history = (await client.ShowOnChainWalletTransactions(walletId.StoreId, walletId.CryptoCode)).ToArray();
+            Assert.True(history.Length >= 2);
+            var secondPage = (await client.ShowOnChainWalletTransactions(walletId.StoreId, walletId.CryptoCode, skip: 1)).ToArray();
+            Assert.Equal(history.Skip(1).Select(tx => tx.TransactionHash), secondPage.Select(tx => tx.TransactionHash));
 
             Assert.Equal(transaction.TransactionHash, txdata.TransactionHash);
             Assert.Equal(String.Empty, transaction.Comment);

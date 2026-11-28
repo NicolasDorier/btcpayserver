@@ -194,6 +194,10 @@ public class RolesTests(ITestOutputHelper testOutputHelper) : UnitTestBase(testO
         await s.GoToStore(StoreNavPages.Roles);
         await s.ClickPagePrimary();
 
+        await s.Page.Locator("input[name='Role']").FillAsync("a::b");
+        await s.ClickPagePrimary();
+        await Expect(s.Page.Locator("input[name='Role']")).ToHaveValueAsync("a::b");
+
         await s.Page.Locator("#Role").FillAsync("store role");
         await s.Page.Locator("input.policy-cb").First.CheckAsync();
         await s.ClickPagePrimary();

@@ -733,6 +733,8 @@ namespace BTCPayServer
 
             if (lnurlRequest.MaxSendable is null)
                 lnurlRequest.MaxSendable = LightMoney.FromUnit(6.12m, LightMoneyUnit.BTC);
+            if (lnurlRequest.MaxSendable < lnurlRequest.MinSendable)
+                lnurlRequest.MaxSendable = lnurlRequest.MinSendable;
         }
 
         PaymentMethodId GetLNUrlPaymentMethodId(string cryptoCode, Data.StoreData store, out LNURLPaymentMethodConfig lnUrlSettings)

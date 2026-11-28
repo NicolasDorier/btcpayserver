@@ -531,6 +531,12 @@ public class UIStoreOnChainWalletsController(
         {
             return NotFound();
         }
+        if (vm.AccountKeys is null || vm.AccountKeys.Count != derivation.AccountKeySettings.Length ||
+            vm.AccountKeys.Any(key => key is null))
+        {
+            ModelState.AddModelError(nameof(vm.AccountKeys), StringLocalizer["Account keys must match the wallet configuration"]);
+            return await WalletSettings(vm.StoreId, vm.CryptoCode);
+        }
         var handler = paymentMethodHandlerDictionary.GetBitcoinHandler(vm.CryptoCode);
         var storeBlob = store.GetStoreBlob();
         var excludeFilters = storeBlob.GetExcludedPaymentMethods();

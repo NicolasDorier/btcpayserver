@@ -211,10 +211,10 @@ namespace BTCPayServer.Controllers.Greenfield
                     filteredList.Add(t);
                 }
 
-                txs = filteredList;
+                txs = filteredList.Skip(skip).Take(limit).ToList();
             }
 
-            var result = txs.Skip(skip).Take(limit).Select(information =>
+            var result = txs.Select(information =>
             {
                 walletTransactionsInfoAsync.TryGetValue(information.TransactionId.ToString(), out var transactionInfo);
                 return ToModel(transactionInfo, information, wallet);

@@ -358,7 +358,7 @@ namespace BTCPayServer.Plugins.Crowdfund.Controllers
                     ViewCrowdfundViewModel = appInfo
                 };
 
-                return ContributeToCrowdfund(appId, req, formResponse: FormDataService.GetValues(form).ToString()).Result;
+                return await ContributeToCrowdfund(appId, req, formResponse: FormDataService.GetValues(form).ToString());
             }
 
             viewModel.AspController = nameof(UICrowdfundController).TrimEnd("Controller", StringComparison.InvariantCulture);

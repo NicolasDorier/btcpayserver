@@ -81,6 +81,7 @@
                                 }
                                 else
                                 {
+                                    <input type="hidden" asp-for="PermissionValues[i].Value" value="true" />
                                     <h5 class="mb-1" id="@Model.PermissionValues[i].Permission">
                                         <span class="me-lg-1">@Model.PermissionValues[i].Title</span>
                                         <small class="text-muted text-break d-block my-2 d-lg-inline-block my-lg-0">@Model.PermissionValues[i].Permission</small>

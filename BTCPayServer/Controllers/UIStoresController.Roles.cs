@@ -80,6 +80,11 @@ public partial class UIStoresController
         {
             successMessage = StringLocalizer["Role created"];
             role = viewModel.Role;
+            if (role?.Contains("::", StringComparison.Ordinal) is true)
+            {
+                ModelState.AddModelError(nameof(viewModel.Role), StringLocalizer["Role names cannot contain '::'"]);
+                return View(viewModel);
+            }
             roleId = new StoreRoleId(storeId, role);
         }
         else

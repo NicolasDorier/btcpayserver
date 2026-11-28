@@ -1443,7 +1443,10 @@ public class WalletTests(ITestOutputHelper helper) : UnitTestBase(helper)
         }
 
         await s.Page.Locator("#SignTransaction").ClickAsync();
+        await s.Page.Locator("form:has(button[value='broadcast']) input[name='ReturnUrl']")
+            .EvaluateAsync("element => element.value = 'https://example.com/'");
         await s.Page.Locator("button[value='broadcast']").ClickAsync();
+        await Expect(s.Page).ToHaveURLAsync(s.Link($"/wallets/{walletId}/transactions"));
         var happyElement = await s.FindAlertMessage();
         var happyText = await happyElement.InnerTextAsync();
         var txid = System.Text.RegularExpressions.Regex.Match(happyText, @"\((.*)\)").Groups[1].Value;
